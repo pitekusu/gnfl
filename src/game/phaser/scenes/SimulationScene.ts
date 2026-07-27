@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import type { RenderEntityState, RenderSnapshot } from "@/game/protocol";
+import { SnapshotBuffer } from "@/game/phaser/snapshotBuffer";
 import {
   CAMERA_FOCUS_Y,
   worldSizeToDisplay,
@@ -20,7 +21,7 @@ export class SimulationScene extends Phaser.Scene {
   public static readonly KEY = "SimulationScene";
 
   private client: SimulationClient | null = null;
-  private latestSnapshot: RenderSnapshot | null = null;
+  private readonly snapshotBuffer = new SnapshotBuffer();
   private readonly entityViews = new Map<string, Phaser.GameObjects.Rectangle>();
   private statusText: Phaser.GameObjects.Text | null = null;
   private unsubscribe: (() => void) | null = null;
@@ -53,8 +54,7 @@ export class SimulationScene extends Phaser.Scene {
           this.emitStatus({ kind: "worker", status: "ready" });
           break;
         case "SNAPSHOT":
-          // C6: apply latest snapshot directly (interpolation arrives next).
-          this.latestSnapshot = message.snapshot;
+          this.snapshotBuffer.push(message.snapshot);
           break;
         case "ERROR":
           this.statusText?.setText(`worker error: ${message.code}`);
@@ -76,10 +76,11 @@ export class SimulationScene extends Phaser.Scene {
   }
 
   public override update(): void {
-    if (!this.latestSnapshot) {
+    const sample = this.snapshotBuffer.sample(performance.now());
+    if (!sample) {
       return;
     }
-    this.applySnapshot(this.latestSnapshot);
+    this.applySnapshot(sample.snapshot);
   }
 
   private applySnapshot(snapshot: RenderSnapshot): void {
@@ -136,6 +137,7 @@ export class SimulationScene extends Phaser.Scene {
     this.unsubscribe = null;
     this.client?.dispose();
     this.client = null;
+    this.snapshotBuffer.clear();
     for (const view of this.entityViews.values()) {
       view.destroy();
     }
