@@ -67,47 +67,48 @@ export type UnloadingLayout = z.infer<typeof unloadingLayoutSchema>;
  */
 export const DEFAULT_UNLOADING_LAYOUT: UnloadingLayout = unloadingLayoutSchema.parse({
   originX: 0,
+  // Compact berth: ship | gap | quay — tight enough that the hull fills the view.
   quay: {
-    // Deck from x≈-2 to x≈18 (left edge clear of the ship stern).
-    centerX: 8,
-    centerY: 7,
-    halfWidth: 10,
-    halfHeight: 0.4,
+    // Deck from x≈-1.5 to x≈14.5
+    centerX: 6.5,
+    centerY: 6.8,
+    halfWidth: 8,
+    halfHeight: 0.45,
   },
   ship: {
-    // Hull from x≈-21 to x≈-11 — water gap before quay left edge at x≈-2.
-    restCenterX: -16,
-    restCenterY: 7.1,
-    halfWidth: 5,
-    halfHeight: 1.9,
-    holdFloorOffsetY: 1.15,
-    holdHalfWidth: 2.2,
+    // Hull from x≈-14 to x≈-5 — water gap ≥1.5 before quay left edge.
+    restCenterX: -9.5,
+    restCenterY: 6.5,
+    halfWidth: 4.5,
+    halfHeight: 2.1,
+    holdFloorOffsetY: 1.2,
+    holdHalfWidth: 2.1,
     holdWallHalfThickness: 0.2,
-    holdWallHeight: 2.4,
+    holdWallHeight: 2.5,
   },
   crane: {
-    railY: 0.4,
-    railMinX: -20,
-    railMaxX: 16,
+    railY: 0.35,
+    railMinX: -15,
+    railMaxX: 14,
     trolleyHalfWidth: 0.9,
     trolleyHalfHeight: 0.35,
     trolleyCableAttachHalfSpan: 0.55,
     spreaderHalfWidth: 0.85,
     spreaderHalfHeight: 0.3,
     spreaderCableAttachHalfSpan: 0.5,
-    spreaderSpawnX: -16,
-    spreaderSpawnY: 3.4,
+    spreaderSpawnX: -9.5,
+    spreaderSpawnY: 2.8,
   },
   cask: {
     halfWidth: 0.7,
     halfHeight: 1.1,
-    spawnX: -16,
-    spawnY: 6.4,
+    spawnX: -9.5,
+    spawnY: 5.9,
   },
   cradle: {
-    centerX: 10,
-    centerY: 6.35,
-    halfWidth: 1.4,
+    centerX: 9,
+    centerY: 6.1,
+    halfWidth: 1.5,
     halfHeight: 0.35,
   },
 });

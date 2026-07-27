@@ -135,7 +135,10 @@ export class SimulationScene extends Phaser.Scene {
         fill,
       );
       view.setOrigin(0.5, 0.5);
-      view.setStrokeStyle(3, stroke);
+      view.setStrokeStyle(entity.kind === "ship" ? 4 : 3, stroke);
+      if (entity.kind === "ship") {
+        view.setDepth(10);
+      }
       this.entityViews.set(entity.id, view);
     }
 
@@ -203,7 +206,8 @@ function entityFillColor(kind: RenderEntityState["kind"]): number {
     case "cradle":
       return 0x5a4632;
     case "ship":
-      return 0x2f4a5c;
+      // High contrast vs dark sea background so the hull reads clearly.
+      return 0x7eb3d4;
     default:
       return 0x4f9cff;
   }
@@ -217,7 +221,7 @@ function entityStrokeColor(kind: RenderEntityState["kind"]): number {
     case "cradle":
       return 0xc4a574;
     case "ship":
-      return 0x7aa0b8;
+      return 0xe8f4fc;
     default:
       return 0xd7ecff;
   }
