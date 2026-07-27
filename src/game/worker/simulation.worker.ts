@@ -60,7 +60,7 @@ function rebuildWorld(seed: string, nextConfig: SimulationConfig): void {
   stageWorld?.free();
   config = nextConfig;
   stageSeed = seed;
-  // Phase 2 C8: hoist target length + dual-cable spreader + free cask.
+  // Phase 2 C9: keyboard-driven PlayerInput applied each physics tick.
   stageWorld = UnloadingScaffoldWorld.create(
     rapier,
     nextConfig.gravityY,

@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { CraneKeyboardBinder } from "@/game/input/CraneKeyboardBinder";
 import type { RenderEntityState, RenderSnapshot } from "@/game/protocol";
 import { SnapshotBuffer } from "@/game/phaser/snapshotBuffer";
 import { visibilityToSimulationAction } from "@/game/phaser/visibilityControl";
@@ -28,11 +29,14 @@ export class SimulationScene extends Phaser.Scene {
   private client: SimulationClient | null = null;
   private readonly snapshotBuffer = new SnapshotBuffer();
   private readonly entityViews = new Map<string, Phaser.GameObjects.Rectangle>();
+  private readonly keyboard = new CraneKeyboardBinder();
   private cableGraphics: Phaser.GameObjects.Graphics | null = null;
   private statusText: Phaser.GameObjects.Text | null = null;
   private hintText: Phaser.GameObjects.Text | null = null;
+  private controlsText: Phaser.GameObjects.Text | null = null;
   private unsubscribe: (() => void) | null = null;
   private snapshotCount = 0;
+  private workerReady = false;
 
   public constructor() {
     super(SimulationScene.KEY);
@@ -61,13 +65,29 @@ export class SimulationScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(1000);
 
+    this.controlsText = this.add
+      .text(
+        12,
+        56,
+        "A/D or ←/→ trolley · W/S or ↑/↓ hoist · Shift fine · Space lock · E stop · Esc pause",
+        {
+          fontFamily: "Segoe UI, Noto Sans JP, sans-serif",
+          fontSize: "12px",
+          color: "#7f93a3",
+        },
+      )
+      .setScrollFactor(0)
+      .setDepth(1000);
+
     this.emitStatus({ kind: "worker", status: "connecting" });
     this.emitStatus({ kind: "phaser", status: "ready" });
 
+    this.keyboard.attach();
     this.client = new SimulationClient();
     this.unsubscribe = this.client.subscribe((message) => {
       switch (message.type) {
         case "READY":
+          this.workerReady = true;
           this.statusText?.setText(`worker: ready (v${message.protocolVersion})`);
           this.emitStatus({ kind: "worker", status: "ready" });
           break;
@@ -77,8 +97,9 @@ export class SimulationScene extends Phaser.Scene {
           this.snapshotBuffer.push(message.snapshot, performance.now());
           if (this.snapshotCount === 1 || this.snapshotCount % 30 === 0) {
             const kinds = message.snapshot.entities.map((e) => e.kind).join(", ");
+            const paused = this.client?.isPausedByUser() ? " · PAUSED" : "";
             this.hintText?.setText(
-              `snapshots: ${this.snapshotCount} · entities: ${kinds || "(none)"}`,
+              `snapshots: ${this.snapshotCount} · entities: ${kinds || "(none)"}${paused}`,
             );
           }
           break;
@@ -103,6 +124,15 @@ export class SimulationScene extends Phaser.Scene {
   }
 
   public override update(): void {
+    if (this.client && this.workerReady) {
+      const { input, pausePressed } = this.keyboard.sample();
+      if (pausePressed) {
+        this.client.togglePause();
+      }
+      // Always send latched axes so the worker can coast to zero when keys release.
+      this.client.sendInput(input);
+    }
+
     const sample = this.snapshotBuffer.sample(performance.now());
     if (!sample) {
       return;
@@ -218,13 +248,17 @@ export class SimulationScene extends Phaser.Scene {
   private onShutdown(): void {
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     this.scale.off("resize", this.handleResize, this);
+    this.keyboard.detach();
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.client?.dispose();
     this.client = null;
+    this.workerReady = false;
     this.snapshotBuffer.clear();
     this.cableGraphics?.destroy();
     this.cableGraphics = null;
+    this.controlsText?.destroy();
+    this.controlsText = null;
     for (const view of this.entityViews.values()) {
       view.destroy();
     }
