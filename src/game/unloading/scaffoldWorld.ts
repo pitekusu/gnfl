@@ -1,0 +1,521 @@
+import type { CableRenderState, PlayerInput, RenderSnapshot } from "@/game/protocol";
+import { createNeutralPlayerInput } from "@/game/protocol";
+import type { RapierModule } from "@/game/simulation/rapierInit";
+import type RAPIER from "@dimforge/rapier2d-compat";
+import {
+  clampCableTargetLength,
+  computeCableForce,
+  type Vec2,
+} from "@/game/unloading/cableForces";
+import {
+  DEFAULT_CRANE_PHYSICS_CONFIG,
+  type CranePhysicsConfig,
+} from "@/game/unloading/cranePhysicsConfig";
+import {
+  DEFAULT_UNLOADING_LAYOUT,
+  type UnloadingLayout,
+} from "@/game/unloading/layout";
+import { integrateCableTargetLength } from "@/game/unloading/hoistMotion";
+import { sampleBaseShipMotion } from "@/game/unloading/shipMotion";
+import { integrateTrolleyOnRail } from "@/game/unloading/trolleyMotion";
+
+/**
+ * Phase 2 world: quay/cradle, ship, trolley, dual-cable spreader, free cask.
+ * Hoist control and locking land in later commits.
+ */
+export class UnloadingScaffoldWorld {
+  public static readonly QUAY_ID = "scaffold-quay";
+  public static readonly CRADLE_ID = "scaffold-cradle";
+  public static readonly SHIP_ID = "scaffold-ship";
+  public static readonly TROLLEY_ID = "scaffold-trolley";
+  public static readonly SPREADER_ID = "scaffold-spreader";
+  public static readonly CASK_ID = "scaffold-cask";
+
+  private readonly world: RAPIER.World;
+  private readonly quayBody: RAPIER.RigidBody;
+  private readonly cradleBody: RAPIER.RigidBody;
+  private readonly shipBody: RAPIER.RigidBody;
+  private readonly trolleyBody: RAPIER.RigidBody;
+  private readonly spreaderBody: RAPIER.RigidBody;
+  private readonly caskBody: RAPIER.RigidBody;
+  private readonly layout: UnloadingLayout;
+  private readonly physics: CranePhysicsConfig;
+  private readonly physicsDtSeconds: number;
+  private readonly physicsHz: number;
+  private readonly seed: string;
+  private lastHeave = 0;
+  private tick = 0;
+  private trolleyX: number;
+  private trolleyVelocity = 0;
+  private cableTargetLength: number;
+  private lastCableTension = 0;
+  private lastCableLength = 0;
+  private lastCables: CableRenderState[] = [];
+  private control: PlayerInput = createNeutralPlayerInput();
+
+  private constructor(
+    world: RAPIER.World,
+    quayBody: RAPIER.RigidBody,
+    cradleBody: RAPIER.RigidBody,
+    shipBody: RAPIER.RigidBody,
+    trolleyBody: RAPIER.RigidBody,
+    spreaderBody: RAPIER.RigidBody,
+    caskBody: RAPIER.RigidBody,
+    layout: UnloadingLayout,
+    physics: CranePhysicsConfig,
+    physicsDtSeconds: number,
+    physicsHz: number,
+    seed: string,
+    trolleyX: number,
+    cableTargetLength: number,
+  ) {
+    this.world = world;
+    this.quayBody = quayBody;
+    this.cradleBody = cradleBody;
+    this.shipBody = shipBody;
+    this.trolleyBody = trolleyBody;
+    this.spreaderBody = spreaderBody;
+    this.caskBody = caskBody;
+    this.layout = layout;
+    this.physics = physics;
+    this.physicsDtSeconds = physicsDtSeconds;
+    this.physicsHz = physicsHz;
+    this.seed = seed;
+    this.trolleyX = trolleyX;
+    this.cableTargetLength = cableTargetLength;
+  }
+
+  public static create(
+    rapier: RapierModule,
+    gravityY: number,
+    physicsHz: number,
+    seed: string,
+    layout: UnloadingLayout = DEFAULT_UNLOADING_LAYOUT,
+    physics: CranePhysicsConfig = DEFAULT_CRANE_PHYSICS_CONFIG,
+  ): UnloadingScaffoldWorld {
+    const physicsDtSeconds = 1 / physicsHz;
+    const world = new rapier.World({ x: 0, y: gravityY });
+    world.timestep = physicsDtSeconds;
+
+    const quayBody = world.createRigidBody(
+      rapier.RigidBodyDesc.fixed().setTranslation(
+        layout.quay.centerX,
+        layout.quay.centerY,
+      ),
+    );
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(
+        layout.quay.halfWidth,
+        layout.quay.halfHeight,
+      ).setFriction(0.85),
+      quayBody,
+    );
+
+    const bumperHalfHeight = 0.9;
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(0.25, bumperHalfHeight)
+        .setTranslation(
+          -layout.quay.halfWidth + 0.25,
+          -layout.quay.halfHeight - bumperHalfHeight,
+        )
+        .setFriction(0.6),
+      quayBody,
+    );
+
+    const cradleBody = world.createRigidBody(
+      rapier.RigidBodyDesc.fixed().setTranslation(
+        layout.cradle.centerX,
+        layout.cradle.centerY,
+      ),
+    );
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(
+        layout.cradle.halfWidth,
+        layout.cradle.halfHeight,
+      ).setFriction(0.95),
+      cradleBody,
+    );
+
+    const initialShip = sampleBaseShipMotion(seed, 0, {
+      x: layout.ship.restCenterX,
+      y: layout.ship.restCenterY,
+    });
+
+    const shipBody = world.createRigidBody(
+      rapier.RigidBodyDesc.kinematicPositionBased()
+        .setTranslation(initialShip.x, initialShip.y)
+        .setRotation(initialShip.angleRad),
+    );
+
+    // No solid outer hull collider — it would trap the cask. Hold floor/walls only.
+    // The ship entity remains a visual greybox from layout half extents.
+
+    const holdFloorY = layout.ship.holdFloorOffsetY;
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(layout.ship.holdHalfWidth, 0.15)
+        .setTranslation(0, holdFloorY)
+        .setFriction(0.9),
+      shipBody,
+    );
+    const wallLocalY = holdFloorY - layout.ship.holdWallHeight / 2;
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(
+        layout.ship.holdWallHalfThickness,
+        layout.ship.holdWallHeight / 2,
+      )
+        .setTranslation(-layout.ship.holdHalfWidth, wallLocalY)
+        .setFriction(0.7),
+      shipBody,
+    );
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(
+        layout.ship.holdWallHalfThickness,
+        layout.ship.holdWallHeight / 2,
+      )
+        .setTranslation(layout.ship.holdHalfWidth, wallLocalY)
+        .setFriction(0.7),
+      shipBody,
+    );
+
+    const trolleyX = layout.crane.spreaderSpawnX;
+    const trolleyBody = world.createRigidBody(
+      rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(
+        trolleyX,
+        layout.crane.railY,
+      ),
+    );
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(
+        layout.crane.trolleyHalfWidth,
+        layout.crane.trolleyHalfHeight,
+      ).setFriction(0.2),
+      trolleyBody,
+    );
+
+    const cableTargetLength = clampCableTargetLength(
+      physics.hoist.initialCableLength,
+      physics.hoist.minCableLength,
+      physics.hoist.maxCableLength,
+    );
+
+    const spreaderBody = world.createRigidBody(
+      rapier.RigidBodyDesc.dynamic()
+        .setTranslation(layout.crane.spreaderSpawnX, layout.crane.spreaderSpawnY)
+        .setLinearDamping(physics.spreader.linearDamping)
+        .setAngularDamping(physics.spreader.angularDamping)
+        .setCanSleep(false),
+    );
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(
+        layout.crane.spreaderHalfWidth,
+        layout.crane.spreaderHalfHeight,
+      )
+        .setDensity(2.2)
+        .setFriction(0.4)
+        .setRestitution(0.05),
+      spreaderBody,
+    );
+
+    // Free transport cask (unlocked). Sits in the hold; locking is Phase 3.
+    const caskBody = world.createRigidBody(
+      rapier.RigidBodyDesc.dynamic()
+        .setTranslation(layout.cask.spawnX, layout.cask.spawnY)
+        .setLinearDamping(physics.cask.linearDamping)
+        .setAngularDamping(physics.cask.angularDamping)
+        .setCanSleep(false),
+    );
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(layout.cask.halfWidth, layout.cask.halfHeight)
+        .setDensity(3.5)
+        .setFriction(0.75)
+        .setRestitution(0.02),
+      caskBody,
+    );
+
+    const stage = new UnloadingScaffoldWorld(
+      world,
+      quayBody,
+      cradleBody,
+      shipBody,
+      trolleyBody,
+      spreaderBody,
+      caskBody,
+      layout,
+      physics,
+      physicsDtSeconds,
+      physicsHz,
+      seed,
+      trolleyX,
+      cableTargetLength,
+    );
+    stage.lastHeave = initialShip.heave;
+    return stage;
+  }
+
+  public setControlInput(input: PlayerInput): void {
+    this.control = input;
+  }
+
+  public getTrolleyX(): number {
+    return this.trolleyX;
+  }
+
+  public getSpreaderTranslation(): Vec2 {
+    const t = this.spreaderBody.translation();
+    return { x: t.x, y: t.y };
+  }
+
+  public getCableTargetLength(): number {
+    return this.cableTargetLength;
+  }
+
+  public getCaskTranslation(): Vec2 {
+    const t = this.caskBody.translation();
+    return { x: t.x, y: t.y };
+  }
+
+  public step(): void {
+    this.tick += 1;
+    const elapsedSeconds = this.tick / this.physicsHz;
+
+    const trolley = integrateTrolleyOnRail({
+      x: this.trolleyX,
+      velocity: this.trolleyVelocity,
+      axis: this.control.trolleyAxis,
+      dtSeconds: this.physicsDtSeconds,
+      maxSpeed: this.physics.trolley.maxSpeed,
+      acceleration: this.physics.trolley.acceleration,
+      axisDeadzone: this.physics.trolley.axisDeadzone,
+      fineMode: this.control.fineMode,
+      fineSpeedScale: this.physics.fineMode.speedScale,
+      railMinX: this.layout.crane.railMinX,
+      railMaxX: this.layout.crane.railMaxX,
+      trolleyHalfWidth: this.layout.crane.trolleyHalfWidth,
+    });
+    this.trolleyX = trolley.x;
+    this.trolleyVelocity = trolley.velocity;
+    this.trolleyBody.setNextKinematicTranslation({
+      x: this.trolleyX,
+      y: this.layout.crane.railY,
+    });
+    this.trolleyBody.setNextKinematicRotation(0);
+
+    // Hoist: change spring rest length (positive axis shortens = lift).
+    this.cableTargetLength = integrateCableTargetLength({
+      targetLength: this.cableTargetLength,
+      axis: this.control.hoistAxis,
+      dtSeconds: this.physicsDtSeconds,
+      maxSpeed: this.physics.hoist.maxSpeed,
+      axisDeadzone: this.physics.trolley.axisDeadzone,
+      fineMode: this.control.fineMode,
+      fineSpeedScale: this.physics.fineMode.speedScale,
+      minCableLength: this.physics.hoist.minCableLength,
+      maxCableLength: this.physics.hoist.maxCableLength,
+    });
+
+    const pose = sampleBaseShipMotion(
+      this.seed,
+      elapsedSeconds,
+      {
+        x: this.layout.ship.restCenterX,
+        y: this.layout.ship.restCenterY,
+      },
+      { highWaveEnvelope: 0 },
+    );
+    this.lastHeave = pose.heave;
+    this.shipBody.setNextKinematicTranslation({ x: pose.x, y: pose.y });
+    this.shipBody.setNextKinematicRotation(pose.angleRad);
+
+    this.applyCableForces();
+
+    this.world.timestep = this.physicsDtSeconds;
+    this.world.step();
+  }
+
+  private applyCableForces(): void {
+    this.spreaderBody.resetForces(true);
+    this.spreaderBody.resetTorques(true);
+
+    const trolleyVel: Vec2 = { x: this.trolleyVelocity, y: 0 };
+    const spanT = this.layout.crane.trolleyCableAttachHalfSpan;
+    const spanS = this.layout.crane.spreaderCableAttachHalfSpan;
+    // Attach slightly above spreader center so hang looks natural.
+    const localAttachY = -this.layout.crane.spreaderHalfHeight * 0.85;
+
+    const sides: Array<{ id: string; sign: number }> = [
+      { id: "cable-left", sign: -1 },
+      { id: "cable-right", sign: 1 },
+    ];
+
+    let totalTension = 0;
+    let totalLength = 0;
+    const cables: CableRenderState[] = [];
+
+    for (const side of sides) {
+      const anchorA: Vec2 = {
+        x: this.trolleyX + side.sign * spanT,
+        y: this.layout.crane.railY,
+      };
+      const localX = side.sign * spanS;
+      const anchorB = worldPointOnBody(this.spreaderBody, localX, localAttachY);
+      const velocityB = worldVelocityOnBody(this.spreaderBody, localX, localAttachY);
+
+      const result = computeCableForce({
+        anchorA,
+        anchorB,
+        velocityA: trolleyVel,
+        velocityB,
+        targetLength: this.cableTargetLength,
+        stiffness: this.physics.cable.stiffness,
+        damping: this.physics.cable.damping,
+        maxTension: this.physics.cable.maxTension,
+      });
+
+      totalTension += result.tension;
+      totalLength += result.length;
+      if (!result.slack) {
+        this.spreaderBody.addForceAtPoint(result.forceOnB, anchorB, true);
+      }
+      cables.push({
+        id: side.id,
+        ax: anchorA.x,
+        ay: anchorA.y,
+        bx: anchorB.x,
+        by: anchorB.y,
+        tension: result.tension,
+      });
+    }
+
+    this.lastCableTension = totalTension / sides.length;
+    this.lastCableLength = totalLength / sides.length;
+    this.lastCables = cables;
+  }
+
+  public buildSnapshot(tick: number, generatedAtMs: number): RenderSnapshot {
+    const quay = this.quayBody.translation();
+    const cradle = this.cradleBody.translation();
+    const ship = this.shipBody.translation();
+    const trolley = this.trolleyBody.translation();
+    const spreader = this.spreaderBody.translation();
+    const spreaderVel = this.spreaderBody.linvel();
+    const cask = this.caskBody.translation();
+    // Lateral offset from trolley is the readable "振れ" for players (not just velocity).
+    const lateralSway = Math.abs(spreader.x - this.trolleyX);
+    const speedSway = Math.hypot(spreaderVel.x, spreaderVel.y);
+    // Prefer measured spring tension; if nearly slack at equilibrium, show stretch load.
+    const stretchLoad = Math.max(
+      0,
+      (this.lastCableLength - this.cableTargetLength) * this.physics.cable.stiffness,
+    );
+    const cableLoad = Math.max(this.lastCableTension, stretchLoad);
+
+    return {
+      tick,
+      generatedAtMs,
+      stagePhase: "READY",
+      entities: [
+        {
+          id: UnloadingScaffoldWorld.SHIP_ID,
+          kind: "ship",
+          x: ship.x,
+          y: ship.y,
+          angleRad: this.shipBody.rotation(),
+          width: this.layout.ship.halfWidth * 2,
+          height: this.layout.ship.halfHeight * 2,
+        },
+        {
+          id: UnloadingScaffoldWorld.QUAY_ID,
+          kind: "quay",
+          x: quay.x,
+          y: quay.y,
+          angleRad: this.quayBody.rotation(),
+          width: this.layout.quay.halfWidth * 2,
+          height: this.layout.quay.halfHeight * 2,
+        },
+        {
+          id: UnloadingScaffoldWorld.CRADLE_ID,
+          kind: "cradle",
+          x: cradle.x,
+          y: cradle.y,
+          angleRad: this.cradleBody.rotation(),
+          width: this.layout.cradle.halfWidth * 2,
+          height: this.layout.cradle.halfHeight * 2,
+        },
+        {
+          id: UnloadingScaffoldWorld.CASK_ID,
+          kind: "cask",
+          x: cask.x,
+          y: cask.y,
+          angleRad: this.caskBody.rotation(),
+          width: this.layout.cask.halfWidth * 2,
+          height: this.layout.cask.halfHeight * 2,
+        },
+        {
+          id: UnloadingScaffoldWorld.TROLLEY_ID,
+          kind: "trolley",
+          x: trolley.x,
+          y: trolley.y,
+          angleRad: this.trolleyBody.rotation(),
+          width: this.layout.crane.trolleyHalfWidth * 2,
+          height: this.layout.crane.trolleyHalfHeight * 2,
+        },
+        {
+          id: UnloadingScaffoldWorld.SPREADER_ID,
+          kind: "spreader",
+          x: spreader.x,
+          y: spreader.y,
+          angleRad: this.spreaderBody.rotation(),
+          width: this.layout.crane.spreaderHalfWidth * 2,
+          height: this.layout.crane.spreaderHalfHeight * 2,
+        },
+      ],
+      cables: this.lastCables,
+      instruments: {
+        cableLoad,
+        // Displacement-dominant so the HUD moves when the load swings.
+        sway: lateralSway + speedSway * 0.25,
+      },
+      weather: {
+        windHint: 0,
+        waveHint: this.lastHeave,
+      },
+    };
+  }
+
+  public free(): void {
+    this.world.free();
+  }
+}
+
+function worldPointOnBody(
+  body: RAPIER.RigidBody,
+  localX: number,
+  localY: number,
+): Vec2 {
+  const t = body.translation();
+  const angle = body.rotation();
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return {
+    x: t.x + localX * cos - localY * sin,
+    y: t.y + localX * sin + localY * cos,
+  };
+}
+
+function worldVelocityOnBody(
+  body: RAPIER.RigidBody,
+  localX: number,
+  localY: number,
+): Vec2 {
+  const angle = body.rotation();
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const rx = localX * cos - localY * sin;
+  const ry = localX * sin + localY * cos;
+  const lv = body.linvel();
+  const av = body.angvel();
+  return {
+    x: lv.x - av * ry,
+    y: lv.y + av * rx,
+  };
+}

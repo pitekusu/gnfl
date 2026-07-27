@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { GreyboxDemoWorld } from "@/game/simulation/greyboxDemoWorld";
+import { GreyboxDemoWorld } from "@/game/simulation/demo/greyboxDropDemoWorld";
 import { initRapier } from "@/game/simulation/rapierInit";
 import { shouldEmitSnapshot } from "@/game/simulation/snapshotSchedule";
 
-describe("greybox demo world", () => {
+describe("greybox drop demo world (phase 1 archive)", () => {
   it("builds JSON-safe snapshots without rapier handles", async () => {
     const rapier = await initRapier();
     const world = GreyboxDemoWorld.create(rapier, 12, 120);

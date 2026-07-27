@@ -2,6 +2,7 @@ import {
   DEFAULT_SIMULATION_CONFIG,
   isWorkerToMainMessage,
   type MainToWorkerMessage,
+  type PlayerInput,
   type SimulationConfig,
   type WorkerToMainMessage,
 } from "@/game/protocol";
@@ -21,6 +22,8 @@ export class SimulationClient {
   private worker: Worker | null = null;
   private readonly listeners = new Set<SimulationClientListener>();
   private disposed = false;
+  private inputSequence = 0;
+  private pausedByUser = false;
 
   public start(options: SimulationClientOptions = {}): void {
     if (this.disposed) {
@@ -56,7 +59,7 @@ export class SimulationClient {
 
     this.post({
       type: "INIT",
-      seed: options.seed ?? "phase1-default",
+      seed: options.seed ?? "phase2-default",
       config: options.config ?? DEFAULT_SIMULATION_CONFIG,
     });
   }
@@ -76,11 +79,35 @@ export class SimulationClient {
   }
 
   public pause(): void {
+    this.pausedByUser = true;
     this.post({ type: "PAUSE" });
   }
 
   public resume(): void {
+    this.pausedByUser = false;
     this.post({ type: "RESUME" });
+  }
+
+  public togglePause(): void {
+    if (this.pausedByUser) {
+      this.resume();
+      return;
+    }
+    this.pause();
+  }
+
+  public isPausedByUser(): boolean {
+    return this.pausedByUser;
+  }
+
+  /** Send the latest control axes; sequence prevents replaying edge buttons. */
+  public sendInput(input: PlayerInput): void {
+    this.inputSequence += 1;
+    this.post({
+      type: "INPUT",
+      sequence: this.inputSequence,
+      input,
+    });
   }
 
   public reset(

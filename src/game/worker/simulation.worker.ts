@@ -12,37 +12,37 @@ import {
   physicsDtSeconds,
   type FixedStepState,
 } from "@/game/simulation/fixedStep";
-import { GreyboxDemoWorld } from "@/game/simulation/greyboxDemoWorld";
 import { initRapier, type RapierModule } from "@/game/simulation/rapierInit";
 import { SimulationController } from "@/game/simulation/simulationController";
 import { shouldEmitSnapshot } from "@/game/simulation/snapshotSchedule";
+import { UnloadingScaffoldWorld } from "@/game/unloading/scaffoldWorld";
 
 let rapier: RapierModule | null = null;
-let demoWorld: GreyboxDemoWorld | null = null;
+let stageWorld: UnloadingScaffoldWorld | null = null;
 let config: SimulationConfig | null = null;
 let stepState: FixedStepState = createFixedStepState();
 let lastFrameMs = 0;
 let loopTimer: ReturnType<typeof setTimeout> | null = null;
 let loopRunning = false;
 
+let stageSeed = "phase2-default";
+
 const controller = new SimulationController({
   onInit: async (seed, nextConfig) => {
-    void seed;
     rapier = await initRapier();
-    rebuildWorld(nextConfig);
+    rebuildWorld(seed, nextConfig);
   },
   onReset: async (seed, nextConfig) => {
-    void seed;
     if (!rapier) {
       rapier = await initRapier();
     }
-    rebuildWorld(nextConfig);
+    rebuildWorld(seed, nextConfig);
     lastFrameMs = performance.now();
   },
   onDispose: () => {
     stopLoop();
-    demoWorld?.free();
-    demoWorld = null;
+    stageWorld?.free();
+    stageWorld = null;
     config = null;
   },
   onPause: () => {
@@ -53,22 +53,26 @@ const controller = new SimulationController({
   },
 });
 
-function rebuildWorld(nextConfig: SimulationConfig): void {
+function rebuildWorld(seed: string, nextConfig: SimulationConfig): void {
   if (!rapier) {
     throw new Error("Rapier is not initialized");
   }
-  demoWorld?.free();
+  stageWorld?.free();
   config = nextConfig;
-  demoWorld = GreyboxDemoWorld.create(
+  stageSeed = seed;
+  // Phase 2 C12: greybox unloading scene with keyboard crane control.
+  stageWorld = UnloadingScaffoldWorld.create(
     rapier,
     nextConfig.gravityY,
     nextConfig.physicsHz,
+    stageSeed,
   );
-  stepState = createFixedStepState();
-  // Initial pose before the first physics step.
+  // One step evaluates cable anchors for the first SNAPSHOT.
+  stageWorld.step();
+  stepState = createFixedStepState(1);
   post({
     type: "SNAPSHOT",
-    snapshot: demoWorld.buildSnapshot(0, performance.now()),
+    snapshot: stageWorld.buildSnapshot(1, performance.now()),
   });
 }
 
@@ -93,7 +97,6 @@ function scheduleNextFrame(): void {
   if (!loopRunning) {
     return;
   }
-  // ~240 Hz host wakeups keep the 120 Hz accumulator fed without relying on exact timers.
   loopTimer = setTimeout(frame, 1000 / 240);
 }
 
@@ -107,9 +110,7 @@ function frame(): void {
   const elapsedSeconds = (now - lastFrameMs) / 1000;
   lastFrameMs = now;
 
-  // Step whenever the world exists. isReady is true after INIT returns; we also
-  // start the loop only after READY is posted (see handleMessage).
-  if (!controller.isPaused && demoWorld && config && !controller.isDisposed) {
+  if (!controller.isPaused && stageWorld && config && !controller.isDisposed) {
     const advanced = advanceFixedStep(stepState, elapsedSeconds, {
       dtSeconds: physicsDtSeconds(config.physicsHz),
       maxCatchUpTicks: config.maxCatchUpTicks,
@@ -117,21 +118,14 @@ function frame(): void {
     stepState = advanced.state;
 
     for (let i = 0; i < advanced.steps; i += 1) {
-      demoWorld.step();
+      stageWorld.setControlInput(controller.input);
+      stageWorld.step();
       const tickAfter = stepState.tick - advanced.steps + i + 1;
-
-      if (
-        config.demoReplayTicks > 0 &&
-        tickAfter > 0 &&
-        tickAfter % config.demoReplayTicks === 0
-      ) {
-        demoWorld.resetBox();
-      }
 
       if (shouldEmitSnapshot(tickAfter, config.physicsHz, config.snapshotHz)) {
         post({
           type: "SNAPSHOT",
-          snapshot: demoWorld.buildSnapshot(tickAfter, performance.now()),
+          snapshot: stageWorld.buildSnapshot(tickAfter, performance.now()),
         });
       }
     }
@@ -164,7 +158,6 @@ async function handleMessage(message: MainToWorkerMessage): Promise<void> {
     post(reply);
   }
 
-  // Start the physics loop only after INIT succeeded (READY), so isReady is set.
   if (
     (message.type === "INIT" || message.type === "RESET") &&
     replies.some((reply) => reply.type === "READY")
