@@ -157,6 +157,8 @@ export class SimulationScene extends Phaser.Scene {
       view.setStrokeStyle(entity.kind === "ship" ? 4 : 3, stroke);
       if (entity.kind === "ship") {
         view.setDepth(10);
+      } else if (entity.kind === "cask") {
+        view.setDepth(12);
       } else if (entity.kind === "spreader" || entity.kind === "trolley") {
         view.setDepth(15);
       }
@@ -236,6 +238,8 @@ function entityFillColor(kind: RenderEntityState["kind"]): number {
       return 0xf0a030;
     case "spreader":
       return 0xd4573a;
+    case "cask":
+      return 0x9a7b4f;
     default:
       return 0x4f9cff;
   }
@@ -254,6 +258,8 @@ function entityStrokeColor(kind: RenderEntityState["kind"]): number {
       return 0xffe0a8;
     case "spreader":
       return 0xffc4b0;
+    case "cask":
+      return 0xe2c792;
     default:
       return 0xd7ecff;
   }

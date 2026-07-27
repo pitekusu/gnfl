@@ -102,8 +102,9 @@ export const DEFAULT_UNLOADING_LAYOUT: UnloadingLayout = unloadingLayoutSchema.p
   cask: {
     halfWidth: 0.7,
     halfHeight: 1.1,
+    // World spawn inside the hold mouth; settles onto the hold floor under gravity.
     spawnX: -9.5,
-    spawnY: 5.9,
+    spawnY: 6.2,
   },
   cradle: {
     centerX: 9,

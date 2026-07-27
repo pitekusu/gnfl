@@ -19,8 +19,8 @@ import { sampleBaseShipMotion } from "@/game/unloading/shipMotion";
 import { integrateTrolleyOnRail } from "@/game/unloading/trolleyMotion";
 
 /**
- * Phase 2 world: quay/cradle, ship, trolley, dual-cable spreader.
- * Free cask and hoist control land in later commits.
+ * Phase 2 world: quay/cradle, ship, trolley, dual-cable spreader, free cask.
+ * Hoist control and locking land in later commits.
  */
 export class UnloadingScaffoldWorld {
   public static readonly QUAY_ID = "scaffold-quay";
@@ -28,6 +28,7 @@ export class UnloadingScaffoldWorld {
   public static readonly SHIP_ID = "scaffold-ship";
   public static readonly TROLLEY_ID = "scaffold-trolley";
   public static readonly SPREADER_ID = "scaffold-spreader";
+  public static readonly CASK_ID = "scaffold-cask";
 
   private readonly world: RAPIER.World;
   private readonly quayBody: RAPIER.RigidBody;
@@ -35,6 +36,7 @@ export class UnloadingScaffoldWorld {
   private readonly shipBody: RAPIER.RigidBody;
   private readonly trolleyBody: RAPIER.RigidBody;
   private readonly spreaderBody: RAPIER.RigidBody;
+  private readonly caskBody: RAPIER.RigidBody;
   private readonly layout: UnloadingLayout;
   private readonly physics: CranePhysicsConfig;
   private readonly physicsDtSeconds: number;
@@ -56,6 +58,7 @@ export class UnloadingScaffoldWorld {
     shipBody: RAPIER.RigidBody,
     trolleyBody: RAPIER.RigidBody,
     spreaderBody: RAPIER.RigidBody,
+    caskBody: RAPIER.RigidBody,
     layout: UnloadingLayout,
     physics: CranePhysicsConfig,
     physicsDtSeconds: number,
@@ -70,6 +73,7 @@ export class UnloadingScaffoldWorld {
     this.shipBody = shipBody;
     this.trolleyBody = trolleyBody;
     this.spreaderBody = spreaderBody;
+    this.caskBody = caskBody;
     this.layout = layout;
     this.physics = physics;
     this.physicsDtSeconds = physicsDtSeconds;
@@ -141,13 +145,8 @@ export class UnloadingScaffoldWorld {
         .setRotation(initialShip.angleRad),
     );
 
-    world.createCollider(
-      rapier.ColliderDesc.cuboid(
-        layout.ship.halfWidth,
-        layout.ship.halfHeight,
-      ).setFriction(0.7),
-      shipBody,
-    );
+    // No solid outer hull collider — it would trap the cask. Hold floor/walls only.
+    // The ship entity remains a visual greybox from layout half extents.
 
     const holdFloorY = layout.ship.holdFloorOffsetY;
     world.createCollider(
@@ -215,6 +214,22 @@ export class UnloadingScaffoldWorld {
       spreaderBody,
     );
 
+    // Free transport cask (unlocked). Sits in the hold; locking is Phase 3.
+    const caskBody = world.createRigidBody(
+      rapier.RigidBodyDesc.dynamic()
+        .setTranslation(layout.cask.spawnX, layout.cask.spawnY)
+        .setLinearDamping(physics.cask.linearDamping)
+        .setAngularDamping(physics.cask.angularDamping)
+        .setCanSleep(false),
+    );
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(layout.cask.halfWidth, layout.cask.halfHeight)
+        .setDensity(3.5)
+        .setFriction(0.75)
+        .setRestitution(0.02),
+      caskBody,
+    );
+
     const stage = new UnloadingScaffoldWorld(
       world,
       quayBody,
@@ -222,6 +237,7 @@ export class UnloadingScaffoldWorld {
       shipBody,
       trolleyBody,
       spreaderBody,
+      caskBody,
       layout,
       physics,
       physicsDtSeconds,
@@ -249,6 +265,11 @@ export class UnloadingScaffoldWorld {
 
   public getCableTargetLength(): number {
     return this.cableTargetLength;
+  }
+
+  public getCaskTranslation(): Vec2 {
+    const t = this.caskBody.translation();
+    return { x: t.x, y: t.y };
   }
 
   public step(): void {
@@ -359,6 +380,7 @@ export class UnloadingScaffoldWorld {
     const trolley = this.trolleyBody.translation();
     const spreader = this.spreaderBody.translation();
     const spreaderVel = this.spreaderBody.linvel();
+    const cask = this.caskBody.translation();
 
     return {
       tick,
@@ -391,6 +413,15 @@ export class UnloadingScaffoldWorld {
           angleRad: this.cradleBody.rotation(),
           width: this.layout.cradle.halfWidth * 2,
           height: this.layout.cradle.halfHeight * 2,
+        },
+        {
+          id: UnloadingScaffoldWorld.CASK_ID,
+          kind: "cask",
+          x: cask.x,
+          y: cask.y,
+          angleRad: this.caskBody.rotation(),
+          width: this.layout.cask.halfWidth * 2,
+          height: this.layout.cask.halfHeight * 2,
         },
         {
           id: UnloadingScaffoldWorld.TROLLEY_ID,

@@ -5,7 +5,7 @@ import { DEFAULT_UNLOADING_LAYOUT } from "@/game/unloading/layout";
 import { UnloadingScaffoldWorld } from "@/game/unloading/scaffoldWorld";
 
 describe("UnloadingScaffoldWorld", () => {
-  it("exposes trolley, spreader, and cable segments", async () => {
+  it("exposes trolley, spreader, cask, and cable segments", async () => {
     const rapier = await initRapier();
     const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "test-seed");
     // One step builds cable state used by the snapshot.
@@ -13,12 +13,29 @@ describe("UnloadingScaffoldWorld", () => {
     const snapshot = world.buildSnapshot(1, 0);
 
     expect(snapshot.entities.map((e) => e.kind)).toEqual(
-      expect.arrayContaining(["ship", "quay", "cradle", "trolley", "spreader"]),
+      expect.arrayContaining(["ship", "quay", "cradle", "trolley", "spreader", "cask"]),
     );
     expect(snapshot.cables).toHaveLength(2);
     expect(snapshot.cables[0]?.id).toBe("cable-left");
     expect(snapshot.cables[1]?.id).toBe("cable-right");
     expect(() => JSON.stringify(snapshot)).not.toThrow();
+    world.free();
+  });
+
+  it("settles the free cask onto the ship hold floor", async () => {
+    const rapier = await initRapier();
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "cask-seed");
+    const start = world.getCaskTranslation();
+    for (let i = 0; i < 240; i += 1) {
+      world.step();
+    }
+    const settled = world.getCaskTranslation();
+    // Y-down: resting on the hold floor is lower (larger y) than the spawn mouth.
+    expect(settled.y).toBeGreaterThan(start.y);
+    // Still roughly under the hold (not teleported to the quay).
+    expect(
+      Math.abs(settled.x - DEFAULT_UNLOADING_LAYOUT.ship.restCenterX),
+    ).toBeLessThan(DEFAULT_UNLOADING_LAYOUT.ship.halfWidth);
     world.free();
   });
 

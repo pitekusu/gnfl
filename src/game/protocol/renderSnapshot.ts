@@ -11,6 +11,7 @@ export interface RenderEntityState {
     | "ship"
     | "trolley"
     | "spreader"
+    | "cask"
     | "unknown";
   x: number;
   y: number;
