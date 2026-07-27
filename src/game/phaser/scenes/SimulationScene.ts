@@ -90,7 +90,7 @@ export class SimulationScene extends Phaser.Scene {
           break;
       }
     });
-    this.client.start({ seed: "phase1-greybox" });
+    this.client.start({ seed: "phase2-greybox" });
 
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
     this.scale.on("resize", this.handleResize, this);
@@ -202,6 +202,8 @@ function entityFillColor(kind: RenderEntityState["kind"]): number {
       return 0x3a4f5f;
     case "cradle":
       return 0x5a4632;
+    case "ship":
+      return 0x2f4a5c;
     default:
       return 0x4f9cff;
   }
@@ -214,6 +216,8 @@ function entityStrokeColor(kind: RenderEntityState["kind"]): number {
       return 0x8fa6b8;
     case "cradle":
       return 0xc4a574;
+    case "ship":
+      return 0x7aa0b8;
     default:
       return 0xd7ecff;
   }

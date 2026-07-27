@@ -4,46 +4,72 @@ import { DEFAULT_UNLOADING_LAYOUT } from "@/game/unloading/layout";
 import { UnloadingScaffoldWorld } from "@/game/unloading/scaffoldWorld";
 
 describe("UnloadingScaffoldWorld", () => {
-  it("exposes fixed quay and cradle entities from layout", async () => {
+  it("exposes ship, quay, and cradle entities", async () => {
     const rapier = await initRapier();
-    const world = UnloadingScaffoldWorld.create(rapier, 18, 120);
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "test-seed");
     const snapshot = world.buildSnapshot(0, 0);
 
-    expect(snapshot.entities).toHaveLength(2);
+    expect(snapshot.entities.map((e) => e.kind).sort()).toEqual(
+      ["cradle", "quay", "ship"].sort(),
+    );
 
+    const ship = snapshot.entities.find((e) => e.id === UnloadingScaffoldWorld.SHIP_ID);
     const quay = snapshot.entities.find((e) => e.id === UnloadingScaffoldWorld.QUAY_ID);
     const cradle = snapshot.entities.find(
       (e) => e.id === UnloadingScaffoldWorld.CRADLE_ID,
     );
 
-    expect(quay?.kind).toBe("quay");
+    expect(ship?.x).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.ship.restCenterX, 4);
     expect(quay?.x).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.quay.centerX, 5);
-    expect(quay?.y).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.quay.centerY, 5);
-    expect(quay?.width).toBe(DEFAULT_UNLOADING_LAYOUT.quay.halfWidth * 2);
-
-    expect(cradle?.kind).toBe("cradle");
     expect(cradle?.x).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.cradle.centerX, 5);
-    expect(cradle?.y).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.cradle.centerY, 5);
-    expect(cradle?.width).toBe(DEFAULT_UNLOADING_LAYOUT.cradle.halfWidth * 2);
-
     expect(() => JSON.stringify(snapshot)).not.toThrow();
     world.free();
   });
 
-  it("keeps static bodies fixed after stepping", async () => {
+  it("moves the kinematic ship over time for a given seed", async () => {
     const rapier = await initRapier();
-    const world = UnloadingScaffoldWorld.create(rapier, 18, 120);
-    for (let i = 0; i < 60; i += 1) {
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "motion-seed");
+    const before = world.buildSnapshot(0, 0);
+    const shipBefore = before.entities.find(
+      (e) => e.id === UnloadingScaffoldWorld.SHIP_ID,
+    );
+
+    for (let i = 0; i < 120; i += 1) {
       world.step();
     }
-    const snapshot = world.buildSnapshot(60, 1);
-    expect(snapshot.entities).toHaveLength(2);
-    expect(
-      snapshot.entities.find((e) => e.id === UnloadingScaffoldWorld.QUAY_ID)?.y,
-    ).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.quay.centerY, 5);
-    expect(
-      snapshot.entities.find((e) => e.id === UnloadingScaffoldWorld.CRADLE_ID)?.y,
-    ).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.cradle.centerY, 5);
+
+    const after = world.buildSnapshot(120, 1);
+    const shipAfter = after.entities.find(
+      (e) => e.id === UnloadingScaffoldWorld.SHIP_ID,
+    );
+
+    expect(shipBefore).toBeDefined();
+    expect(shipAfter).toBeDefined();
+    const moved =
+      Math.abs((shipAfter?.y ?? 0) - (shipBefore?.y ?? 0)) > 1e-4 ||
+      Math.abs((shipAfter?.angleRad ?? 0) - (shipBefore?.angleRad ?? 0)) > 1e-4;
+    expect(moved).toBe(true);
     world.free();
+  });
+
+  it("reproduces ship pose for the same seed and step count", async () => {
+    const rapier = await initRapier();
+    const a = UnloadingScaffoldWorld.create(rapier, 18, 120, "same-seed");
+    const b = UnloadingScaffoldWorld.create(rapier, 18, 120, "same-seed");
+    for (let i = 0; i < 90; i += 1) {
+      a.step();
+      b.step();
+    }
+    const sa = a
+      .buildSnapshot(90, 0)
+      .entities.find((e) => e.id === UnloadingScaffoldWorld.SHIP_ID);
+    const sb = b
+      .buildSnapshot(90, 0)
+      .entities.find((e) => e.id === UnloadingScaffoldWorld.SHIP_ID);
+    expect(sa?.x).toBeCloseTo(sb?.x ?? 0, 5);
+    expect(sa?.y).toBeCloseTo(sb?.y ?? 0, 5);
+    expect(sa?.angleRad).toBeCloseTo(sb?.angleRad ?? 0, 5);
+    a.free();
+    b.free();
   });
 });

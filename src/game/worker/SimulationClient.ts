@@ -56,7 +56,7 @@ export class SimulationClient {
 
     this.post({
       type: "INIT",
-      seed: options.seed ?? "phase1-default",
+      seed: options.seed ?? "phase2-default",
       config: options.config ?? DEFAULT_SIMULATION_CONFIG,
     });
   }

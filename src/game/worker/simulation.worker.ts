@@ -25,18 +25,18 @@ let lastFrameMs = 0;
 let loopTimer: ReturnType<typeof setTimeout> | null = null;
 let loopRunning = false;
 
+let stageSeed = "phase2-default";
+
 const controller = new SimulationController({
   onInit: async (seed, nextConfig) => {
-    void seed;
     rapier = await initRapier();
-    rebuildWorld(nextConfig);
+    rebuildWorld(seed, nextConfig);
   },
   onReset: async (seed, nextConfig) => {
-    void seed;
     if (!rapier) {
       rapier = await initRapier();
     }
-    rebuildWorld(nextConfig);
+    rebuildWorld(seed, nextConfig);
     lastFrameMs = performance.now();
   },
   onDispose: () => {
@@ -53,17 +53,19 @@ const controller = new SimulationController({
   },
 });
 
-function rebuildWorld(nextConfig: SimulationConfig): void {
+function rebuildWorld(seed: string, nextConfig: SimulationConfig): void {
   if (!rapier) {
     throw new Error("Rapier is not initialized");
   }
   stageWorld?.free();
   config = nextConfig;
-  // Phase 2 C1: scaffold only (quay). Crane pieces arrive in later commits.
+  stageSeed = seed;
+  // Phase 2 C4: quay + cradle + kinematic ship. Crane arrives later.
   stageWorld = UnloadingScaffoldWorld.create(
     rapier,
     nextConfig.gravityY,
     nextConfig.physicsHz,
+    stageSeed,
   );
   stepState = createFixedStepState();
   post({
