@@ -22,7 +22,8 @@ import { SimulationClient } from "@/game/worker/SimulationClient";
 export type SimulationStatusPayload =
   | { kind: "worker"; status: "connecting" | "ready" | "error"; detail?: string }
   | { kind: "phaser"; status: "ready" }
-  | { kind: "control"; fineMode: boolean };
+  | { kind: "control"; fineMode: boolean }
+  | { kind: "hud"; sway: number; cableLoad: number };
 
 /**
  * Simulation scene: consumes worker snapshots and draws greybox entities.
@@ -46,6 +47,7 @@ export class SimulationScene extends Phaser.Scene {
   private snapshotCount = 0;
   private workerReady = false;
   private fineModeActive = false;
+  private lastHudEmitMs = 0;
 
   public constructor() {
     super(SimulationScene.KEY);
@@ -120,13 +122,22 @@ export class SimulationScene extends Phaser.Scene {
           this.snapshotCount += 1;
           // Stamp with main-thread time so interpolation does not depend on worker clocks.
           this.snapshotBuffer.push(message.snapshot, performance.now());
-          if (this.snapshotCount === 1 || this.snapshotCount % 20 === 0) {
-            const sway = message.snapshot.instruments.sway;
-            const load = message.snapshot.instruments.cableLoad;
-            const paused = this.client?.isPausedByUser() ? " · 一時停止" : "";
-            this.hintText?.setText(
-              `振れ ${sway.toFixed(2)} · 張力 ${load.toFixed(0)}${paused}`,
-            );
+          {
+            const now = performance.now();
+            // React HUD ~10 Hz — readable, not per-frame React churn.
+            if (now - this.lastHudEmitMs >= 100) {
+              this.lastHudEmitMs = now;
+              this.emitStatus({
+                kind: "hud",
+                sway: message.snapshot.instruments.sway,
+                cableLoad: message.snapshot.instruments.cableLoad,
+              });
+            }
+            if (this.client?.isPausedByUser()) {
+              this.hintText?.setText("一時停止中 (Esc で再開)");
+            } else if (this.snapshotCount === 1) {
+              this.hintText?.setText("操作中 — 振れ/張力は左上 HUD");
+            }
           }
           break;
         case "ERROR":

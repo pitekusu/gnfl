@@ -12,6 +12,8 @@ export function PhaserGame() {
   const [phaserStatus, setPhaserStatus] = useState("initializing");
   const [workerStatus, setWorkerStatus] = useState("idle");
   const [fineMode, setFineMode] = useState(false);
+  const [sway, setSway] = useState(0);
+  const [cableLoad, setCableLoad] = useState(0);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -35,6 +37,11 @@ export function PhaserGame() {
             }
             if (payload.kind === "control") {
               setFineMode(payload.fineMode);
+              return;
+            }
+            if (payload.kind === "hud") {
+              setSway(payload.sway);
+              setCableLoad(payload.cableLoad);
               return;
             }
             if (payload.status === "error") {
@@ -69,6 +76,16 @@ export function PhaserGame() {
 
   return (
     <div className="phaser-host" ref={hostRef} data-testid="phaser-host">
+      <div className="game-hud" data-testid="game-hud">
+        <div className="game-hud-row">
+          <span className="game-hud-label">振れ</span>
+          <span className="game-hud-value">{sway.toFixed(2)}</span>
+        </div>
+        <div className="game-hud-row">
+          <span className="game-hud-label">張力</span>
+          <span className="game-hud-value">{cableLoad.toFixed(0)}</span>
+        </div>
+      </div>
       {fineMode ? (
         <div className="fine-mode-badge" data-testid="fine-mode-badge" role="status">
           緩速状態
