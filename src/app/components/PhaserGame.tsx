@@ -79,11 +79,15 @@ export function PhaserGame() {
       <div className="game-hud" data-testid="game-hud">
         <div className="game-hud-row">
           <span className="game-hud-label">振れ</span>
-          <span className="game-hud-value">{sway.toFixed(2)}</span>
+          <span className="game-hud-value" data-testid="hud-sway">
+            {sway.toFixed(2)}
+          </span>
         </div>
         <div className="game-hud-row">
           <span className="game-hud-label">張力</span>
-          <span className="game-hud-value">{cableLoad.toFixed(0)}</span>
+          <span className="game-hud-value" data-testid="hud-cable-load">
+            {cableLoad.toFixed(1)}
+          </span>
         </div>
       </div>
       {fineMode ? (

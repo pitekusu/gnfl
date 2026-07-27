@@ -39,6 +39,29 @@ describe("UnloadingScaffoldWorld", () => {
     world.free();
   });
 
+  it("reports non-zero instruments while swinging", async () => {
+    const rapier = await initRapier();
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "hud-seed");
+    for (let i = 0; i < 120; i += 1) {
+      world.step();
+    }
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      trolleyAxis: 1,
+    });
+    for (let i = 0; i < 90; i += 1) {
+      world.step();
+    }
+    world.setControlInput(createNeutralPlayerInput());
+    for (let i = 0; i < 30; i += 1) {
+      world.step();
+    }
+    const snap = world.buildSnapshot(240, 0);
+    expect(snap.instruments.sway).toBeGreaterThan(0.2);
+    expect(snap.instruments.cableLoad).toBeGreaterThan(1);
+    world.free();
+  });
+
   it("moves the trolley along the rail from control input", async () => {
     const rapier = await initRapier();
     const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "trolley-seed");

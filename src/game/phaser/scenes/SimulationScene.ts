@@ -181,6 +181,17 @@ export class SimulationScene extends Phaser.Scene {
       return;
     }
     this.applySnapshot(sample.snapshot);
+
+    // Backup HUD path from the displayed snapshot (in case SNAPSHOT-handler emit is skipped).
+    const now = performance.now();
+    if (now - this.lastHudEmitMs >= 100) {
+      this.lastHudEmitMs = now;
+      this.emitStatus({
+        kind: "hud",
+        sway: sample.snapshot.instruments.sway,
+        cableLoad: sample.snapshot.instruments.cableLoad,
+      });
+    }
   }
 
   private applySnapshot(snapshot: RenderSnapshot): void {

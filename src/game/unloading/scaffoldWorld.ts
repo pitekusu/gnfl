@@ -49,6 +49,7 @@ export class UnloadingScaffoldWorld {
   private trolleyVelocity = 0;
   private cableTargetLength: number;
   private lastCableTension = 0;
+  private lastCableLength = 0;
   private lastCables: CableRenderState[] = [];
   private control: PlayerInput = createNeutralPlayerInput();
 
@@ -347,6 +348,7 @@ export class UnloadingScaffoldWorld {
     ];
 
     let totalTension = 0;
+    let totalLength = 0;
     const cables: CableRenderState[] = [];
 
     for (const side of sides) {
@@ -370,6 +372,7 @@ export class UnloadingScaffoldWorld {
       });
 
       totalTension += result.tension;
+      totalLength += result.length;
       if (!result.slack) {
         this.spreaderBody.addForceAtPoint(result.forceOnB, anchorB, true);
       }
@@ -384,6 +387,7 @@ export class UnloadingScaffoldWorld {
     }
 
     this.lastCableTension = totalTension / sides.length;
+    this.lastCableLength = totalLength / sides.length;
     this.lastCables = cables;
   }
 
@@ -395,6 +399,15 @@ export class UnloadingScaffoldWorld {
     const spreader = this.spreaderBody.translation();
     const spreaderVel = this.spreaderBody.linvel();
     const cask = this.caskBody.translation();
+    // Lateral offset from trolley is the readable "振れ" for players (not just velocity).
+    const lateralSway = Math.abs(spreader.x - this.trolleyX);
+    const speedSway = Math.hypot(spreaderVel.x, spreaderVel.y);
+    // Prefer measured spring tension; if nearly slack at equilibrium, show stretch load.
+    const stretchLoad = Math.max(
+      0,
+      (this.lastCableLength - this.cableTargetLength) * this.physics.cable.stiffness,
+    );
+    const cableLoad = Math.max(this.lastCableTension, stretchLoad);
 
     return {
       tick,
@@ -458,8 +471,9 @@ export class UnloadingScaffoldWorld {
       ],
       cables: this.lastCables,
       instruments: {
-        cableLoad: this.lastCableTension,
-        sway: Math.abs(spreaderVel.x),
+        cableLoad,
+        // Displacement-dominant so the HUD moves when the load swings.
+        sway: lateralSway + speedSway * 0.25,
       },
       weather: {
         windHint: 0,

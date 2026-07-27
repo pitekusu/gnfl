@@ -30,11 +30,15 @@ export async function createGame(
     audio: {
       noAudio: true,
     },
+    callbacks: {
+      // Register before scenes boot so early SNAPSHOT/READY can reach React HUD.
+      preBoot: (bootGame) => {
+        if (options.onSimulationStatus) {
+          bootGame.registry.set("onSimulationStatus", options.onSimulationStatus);
+        }
+      },
+    },
   });
-
-  if (options.onSimulationStatus) {
-    game.registry.set("onSimulationStatus", options.onSimulationStatus);
-  }
 
   await waitForSceneReady(game, SimulationScene.KEY);
   return game;
