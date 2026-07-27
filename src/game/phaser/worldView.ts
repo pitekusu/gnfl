@@ -1,11 +1,17 @@
 /** Pixels per simulation game unit. */
 export const PIXELS_PER_UNIT = 56;
 
-/** World Y used as the camera focus (between drop height and floor). */
-export const CAMERA_FOCUS_Y = 2.5;
+/** World X focus — mid berth between ship and quay. */
+export const CAMERA_FOCUS_X = -4;
 
-/** Approx vertical span of the Phase 1 drop demo in world units. */
-export const DEMO_WORLD_HEIGHT = 10;
+/** World Y used as the camera focus (between rail and deck). */
+export const CAMERA_FOCUS_Y = 3.5;
+
+/** Approx vertical span of the unloading greybox scene in world units. */
+export const DEMO_WORLD_HEIGHT = 12;
+
+/** Approx horizontal span for camera fit. */
+export const DEMO_WORLD_WIDTH = 40;
 
 export function worldToDisplayX(worldX: number): number {
   return worldX * PIXELS_PER_UNIT;

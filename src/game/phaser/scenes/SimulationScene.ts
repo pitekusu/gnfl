@@ -3,8 +3,10 @@ import type { RenderEntityState, RenderSnapshot } from "@/game/protocol";
 import { SnapshotBuffer } from "@/game/phaser/snapshotBuffer";
 import { visibilityToSimulationAction } from "@/game/phaser/visibilityControl";
 import {
+  CAMERA_FOCUS_X,
   CAMERA_FOCUS_Y,
   DEMO_WORLD_HEIGHT,
+  DEMO_WORLD_WIDTH,
   PIXELS_PER_UNIT,
   worldSizeToDisplay,
   worldToDisplayX,
@@ -148,12 +150,10 @@ export class SimulationScene extends Phaser.Scene {
   private fitCamera(): void {
     const cam = this.cameras.main;
     const targetHeight = DEMO_WORLD_HEIGHT * PIXELS_PER_UNIT;
-    const zoom = Math.min(
-      cam.height / targetHeight,
-      cam.width / (16 * PIXELS_PER_UNIT),
-    );
-    cam.setZoom(Math.max(0.35, Math.min(zoom * 0.92, 1.4)));
-    cam.centerOn(worldToDisplayX(0), worldToDisplayY(CAMERA_FOCUS_Y));
+    const targetWidth = DEMO_WORLD_WIDTH * PIXELS_PER_UNIT;
+    const zoom = Math.min(cam.height / targetHeight, cam.width / targetWidth);
+    cam.setZoom(Math.max(0.25, Math.min(zoom * 0.92, 1.2)));
+    cam.centerOn(worldToDisplayX(CAMERA_FOCUS_X), worldToDisplayY(CAMERA_FOCUS_Y));
   }
 
   private handleResize(gameSize: Phaser.Structs.Size): void {

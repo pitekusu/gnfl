@@ -7,6 +7,8 @@ import {
 import {
   DEFAULT_UNLOADING_LAYOUT,
   assertUnloadingLayoutInvariants,
+  quayLeftX,
+  shipRestRightX,
   unloadingLayoutSchema,
 } from "@/game/unloading/layout";
 
@@ -15,7 +17,7 @@ describe("unloading layout", () => {
     expect(() => unloadingLayoutSchema.parse(DEFAULT_UNLOADING_LAYOUT)).not.toThrow();
   });
 
-  it("keeps ship left of quay and rail above deck", () => {
+  it("keeps ship left of quay with a water gap", () => {
     expect(() =>
       assertUnloadingLayoutInvariants(DEFAULT_UNLOADING_LAYOUT),
     ).not.toThrow();
@@ -25,6 +27,9 @@ describe("unloading layout", () => {
     expect(DEFAULT_UNLOADING_LAYOUT.crane.railY).toBeLessThan(
       DEFAULT_UNLOADING_LAYOUT.quay.centerY,
     );
+    expect(
+      quayLeftX(DEFAULT_UNLOADING_LAYOUT) - shipRestRightX(DEFAULT_UNLOADING_LAYOUT),
+    ).toBeGreaterThanOrEqual(1.5);
   });
 
   it("rejects inverted rail limits", () => {
@@ -37,6 +42,18 @@ describe("unloading layout", () => {
       },
     };
     expect(() => assertUnloadingLayoutInvariants(bad)).toThrow(/railMinX/);
+  });
+
+  it("rejects ship/quay horizontal overlap", () => {
+    const bad = {
+      ...DEFAULT_UNLOADING_LAYOUT,
+      ship: {
+        ...DEFAULT_UNLOADING_LAYOUT.ship,
+        restCenterX: 0,
+        halfWidth: 12,
+      },
+    };
+    expect(() => assertUnloadingLayoutInvariants(bad)).toThrow(/horizontal gap/);
   });
 });
 

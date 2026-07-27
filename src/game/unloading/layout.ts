@@ -61,52 +61,66 @@ export type UnloadingLayout = z.infer<typeof unloadingLayoutSchema>;
 
 /**
  * Default side-view port layout:
- * ship (left) → quay deck → cradle (right under crane reach).
+ * ship (left, in berth) → water gap → quay deck → cradle (right).
+ *
+ * Keep ship AABB fully left of the quay left edge so greyboxes do not overlap.
  */
 export const DEFAULT_UNLOADING_LAYOUT: UnloadingLayout = unloadingLayoutSchema.parse({
   originX: 0,
   quay: {
-    centerX: 4,
+    // Deck from x≈-2 to x≈18 (left edge clear of the ship stern).
+    centerX: 8,
     centerY: 7,
-    halfWidth: 14,
+    halfWidth: 10,
     halfHeight: 0.4,
   },
   ship: {
-    restCenterX: -10,
-    restCenterY: 6.2,
-    halfWidth: 5.5,
-    halfHeight: 2.2,
-    holdFloorOffsetY: 1.4,
-    holdHalfWidth: 2.4,
+    // Hull from x≈-21 to x≈-11 — water gap before quay left edge at x≈-2.
+    restCenterX: -16,
+    restCenterY: 7.1,
+    halfWidth: 5,
+    halfHeight: 1.9,
+    holdFloorOffsetY: 1.15,
+    holdHalfWidth: 2.2,
     holdWallHalfThickness: 0.2,
-    holdWallHeight: 2.6,
+    holdWallHeight: 2.4,
   },
   crane: {
-    railY: 0.5,
-    railMinX: -12,
-    railMaxX: 14,
+    railY: 0.4,
+    railMinX: -20,
+    railMaxX: 16,
     trolleyHalfWidth: 0.9,
     trolleyHalfHeight: 0.35,
     trolleyCableAttachHalfSpan: 0.55,
     spreaderHalfWidth: 0.85,
     spreaderHalfHeight: 0.3,
     spreaderCableAttachHalfSpan: 0.5,
-    spreaderSpawnX: -10,
-    spreaderSpawnY: 3.2,
+    spreaderSpawnX: -16,
+    spreaderSpawnY: 3.4,
   },
   cask: {
     halfWidth: 0.7,
     halfHeight: 1.1,
-    spawnX: -10,
-    spawnY: 5.5,
+    spawnX: -16,
+    spawnY: 6.4,
   },
   cradle: {
-    centerX: 8,
+    centerX: 10,
     centerY: 6.35,
     halfWidth: 1.4,
     halfHeight: 0.35,
   },
 });
+
+/** Ship hull right edge (rest pose, no wave). */
+export function shipRestRightX(layout: UnloadingLayout): number {
+  return layout.ship.restCenterX + layout.ship.halfWidth;
+}
+
+/** Quay deck left edge. */
+export function quayLeftX(layout: UnloadingLayout): number {
+  return layout.quay.centerX - layout.quay.halfWidth;
+}
 
 /** Invariants used by tests and future world builders. */
 export function assertUnloadingLayoutInvariants(layout: UnloadingLayout): void {
@@ -119,8 +133,20 @@ export function assertUnloadingLayoutInvariants(layout: UnloadingLayout): void {
   if (layout.ship.restCenterX >= layout.quay.centerX) {
     throw new Error("ship rest pose should sit left of quay center (side view)");
   }
-  if (layout.cradle.centerX <= layout.quay.centerX - layout.quay.halfWidth * 0.25) {
-    throw new Error("cradle should sit on the quay side of the scene");
+
+  // Horizontal clearance: ship hull must not overlap the quay slab.
+  const gap = quayLeftX(layout) - shipRestRightX(layout);
+  if (gap < 1.5) {
+    throw new Error(
+      `ship/quay horizontal gap must be >= 1.5 game units (got ${gap.toFixed(2)})`,
+    );
+  }
+
+  if (
+    layout.cradle.centerX < layout.quay.centerX - layout.quay.halfWidth ||
+    layout.cradle.centerX > layout.quay.centerX + layout.quay.halfWidth
+  ) {
+    throw new Error("cradle must sit within the quay horizontal span");
   }
   if (layout.crane.spreaderSpawnY <= layout.crane.railY) {
     throw new Error("spreader spawn must hang below the rail");
