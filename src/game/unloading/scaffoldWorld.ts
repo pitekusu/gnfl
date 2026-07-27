@@ -1,6 +1,10 @@
 import type { RenderSnapshot } from "@/game/protocol";
 import type { RapierModule } from "@/game/simulation/rapierInit";
 import type RAPIER from "@dimforge/rapier2d-compat";
+import {
+  DEFAULT_UNLOADING_LAYOUT,
+  type UnloadingLayout,
+} from "@/game/unloading/layout";
 
 /**
  * Minimal Phase 2 starting world: fixed quay deck only.
@@ -8,20 +12,21 @@ import type RAPIER from "@dimforge/rapier2d-compat";
  */
 export class UnloadingScaffoldWorld {
   public static readonly QUAY_ID = "scaffold-quay";
-  public static readonly QUAY_Y = 7;
-  public static readonly QUAY_HALF = { x: 14, y: 0.4 };
 
   private readonly world: RAPIER.World;
   private readonly quayBody: RAPIER.RigidBody;
+  private readonly layout: UnloadingLayout;
   private readonly physicsDtSeconds: number;
 
   private constructor(
     world: RAPIER.World,
     quayBody: RAPIER.RigidBody,
+    layout: UnloadingLayout,
     physicsDtSeconds: number,
   ) {
     this.world = world;
     this.quayBody = quayBody;
+    this.layout = layout;
     this.physicsDtSeconds = physicsDtSeconds;
   }
 
@@ -29,23 +34,27 @@ export class UnloadingScaffoldWorld {
     rapier: RapierModule,
     gravityY: number,
     physicsHz: number,
+    layout: UnloadingLayout = DEFAULT_UNLOADING_LAYOUT,
   ): UnloadingScaffoldWorld {
     const physicsDtSeconds = 1 / physicsHz;
     const world = new rapier.World({ x: 0, y: gravityY });
     world.timestep = physicsDtSeconds;
 
     const quayBody = world.createRigidBody(
-      rapier.RigidBodyDesc.fixed().setTranslation(0, UnloadingScaffoldWorld.QUAY_Y),
+      rapier.RigidBodyDesc.fixed().setTranslation(
+        layout.quay.centerX,
+        layout.quay.centerY,
+      ),
     );
     world.createCollider(
       rapier.ColliderDesc.cuboid(
-        UnloadingScaffoldWorld.QUAY_HALF.x,
-        UnloadingScaffoldWorld.QUAY_HALF.y,
+        layout.quay.halfWidth,
+        layout.quay.halfHeight,
       ).setFriction(0.85),
       quayBody,
     );
 
-    return new UnloadingScaffoldWorld(world, quayBody, physicsDtSeconds);
+    return new UnloadingScaffoldWorld(world, quayBody, layout, physicsDtSeconds);
   }
 
   public step(): void {
@@ -67,8 +76,8 @@ export class UnloadingScaffoldWorld {
           x: quay.x,
           y: quay.y,
           angleRad: this.quayBody.rotation(),
-          width: UnloadingScaffoldWorld.QUAY_HALF.x * 2,
-          height: UnloadingScaffoldWorld.QUAY_HALF.y * 2,
+          width: this.layout.quay.halfWidth * 2,
+          height: this.layout.quay.halfHeight * 2,
         },
       ],
       instruments: { cableLoad: 0, sway: 0 },
