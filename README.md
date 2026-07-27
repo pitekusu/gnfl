@@ -6,18 +6,28 @@ land transporter cradle**, then evaluate the stage and submit a casual online ra
 
 Public URL (later phases): `https://gnfl.pitekusu.dev/`
 
-## Phase 0 status
+## Phase status
 
-Repository scaffold:
+### Phase 0 — done
 
-- pnpm + Vite + React + TypeScript (strict)
-- Phaser empty scene rendered inside a React screen
-- Vitest unit smoke + Playwright Chromium smoke
-- AWS CDK empty app stacks (`cdk synth`)
-- GitHub Actions `ci.yml`
+Repository scaffold: pnpm + Vite + React + TypeScript (strict), Phaser host,
+Vitest/Playwright smoke, empty CDK stacks, GitHub Actions `ci.yml`.
 
-Game physics, crane controls, ranking API, and production deploy are **out of scope**
-for Phase 0.
+### Phase 1 — done
+
+Simulation worker foundation:
+
+- Protocol types for Main ↔ Worker messages
+- Fixed 120 Hz step loop with catch-up limit
+- Rapier 2D WASM inside the module worker only
+- Greybox floor + falling box demo
+- 60 Hz `SNAPSHOT` posts + Phaser interpolation
+- Tab hide → pause; scene unmount → dispose worker
+- React only sees low-frequency ready/error status
+
+### Not yet
+
+Crane controls, weather, scoring, ranking API, production deploy (Phases 2+).
 
 ## Development
 
