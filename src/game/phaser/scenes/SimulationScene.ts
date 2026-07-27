@@ -123,10 +123,8 @@ export class SimulationScene extends Phaser.Scene {
   private syncEntity(entity: RenderEntityState): void {
     let view = this.entityViews.get(entity.id);
     if (!view) {
-      const fill =
-        entity.kind === "quay" || entity.kind === "floor" ? 0x3a4f5f : 0x4f9cff;
-      const stroke =
-        entity.kind === "quay" || entity.kind === "floor" ? 0x8fa6b8 : 0xd7ecff;
+      const fill = entityFillColor(entity.kind);
+      const stroke = entityStrokeColor(entity.kind);
       view = this.add.rectangle(
         worldToDisplayX(entity.x),
         worldToDisplayY(entity.y),
@@ -194,5 +192,29 @@ export class SimulationScene extends Phaser.Scene {
       view.destroy();
     }
     this.entityViews.clear();
+  }
+}
+
+function entityFillColor(kind: RenderEntityState["kind"]): number {
+  switch (kind) {
+    case "quay":
+    case "floor":
+      return 0x3a4f5f;
+    case "cradle":
+      return 0x5a4632;
+    default:
+      return 0x4f9cff;
+  }
+}
+
+function entityStrokeColor(kind: RenderEntityState["kind"]): number {
+  switch (kind) {
+    case "quay":
+    case "floor":
+      return 0x8fa6b8;
+    case "cradle":
+      return 0xc4a574;
+    default:
+      return 0xd7ecff;
   }
 }
