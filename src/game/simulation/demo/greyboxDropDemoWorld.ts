@@ -3,14 +3,13 @@ import type { RapierModule } from "@/game/simulation/rapierInit";
 import type RAPIER from "@dimforge/rapier2d-compat";
 
 /**
- * Minimal Phase 1 demo world: fixed floor + falling box.
- * Y grows downward to match Phaser's coordinate system.
+ * Phase 1 drop demo world (floor + falling box).
+ * Kept for regression tests; not used by the default simulation path after Phase 2 C1.
  */
 export class GreyboxDemoWorld {
   public static readonly BOX_ID = "demo-box";
   public static readonly FLOOR_ID = "demo-floor";
 
-  /** Drop height — high enough that the fall is obvious on screen. */
   public static readonly BOX_SPAWN_Y = -2;
   public static readonly FLOOR_Y = 6;
 
@@ -40,7 +39,6 @@ export class GreyboxDemoWorld {
   ): GreyboxDemoWorld {
     const physicsDtSeconds = 1 / physicsHz;
     const world = new rapier.World({ x: 0, y: gravityY });
-    // Match our fixed-step host loop (directive: 120 Hz), not Rapier's 60 Hz default.
     world.timestep = physicsDtSeconds;
 
     const floorBody = world.createRigidBody(
@@ -70,7 +68,6 @@ export class GreyboxDemoWorld {
     this.world.step();
   }
 
-  /** Put the box back at the spawn pose (used for a repeating drop demo). */
   public resetBox(): void {
     this.boxBody.setTranslation({ x: 0, y: GreyboxDemoWorld.BOX_SPAWN_Y }, true);
     this.boxBody.setLinvel({ x: 0, y: 0 }, true);

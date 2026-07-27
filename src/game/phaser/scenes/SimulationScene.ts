@@ -17,7 +17,7 @@ export type SimulationStatusPayload =
   | { kind: "phaser"; status: "ready" };
 
 /**
- * Phase 1 scene: consumes worker snapshots and draws greybox entities.
+ * Simulation scene: consumes worker snapshots and draws greybox entities.
  * High-frequency state stays here — not in React.
  */
 export class SimulationScene extends Phaser.Scene {
@@ -72,11 +72,9 @@ export class SimulationScene extends Phaser.Scene {
           // Stamp with main-thread time so interpolation does not depend on worker clocks.
           this.snapshotBuffer.push(message.snapshot, performance.now());
           if (this.snapshotCount === 1 || this.snapshotCount % 30 === 0) {
-            const box = message.snapshot.entities.find((e) => e.kind === "box");
+            const kinds = message.snapshot.entities.map((e) => e.kind).join(", ");
             this.hintText?.setText(
-              box
-                ? `snapshots: ${this.snapshotCount} · box y=${box.y.toFixed(2)} (drop + floor loop)`
-                : `snapshots: ${this.snapshotCount}`,
+              `snapshots: ${this.snapshotCount} · entities: ${kinds || "(none)"}`,
             );
           }
           break;
@@ -125,15 +123,19 @@ export class SimulationScene extends Phaser.Scene {
   private syncEntity(entity: RenderEntityState): void {
     let view = this.entityViews.get(entity.id);
     if (!view) {
+      const fill =
+        entity.kind === "quay" || entity.kind === "floor" ? 0x3a4f5f : 0x4f9cff;
+      const stroke =
+        entity.kind === "quay" || entity.kind === "floor" ? 0x8fa6b8 : 0xd7ecff;
       view = this.add.rectangle(
         worldToDisplayX(entity.x),
         worldToDisplayY(entity.y),
         worldSizeToDisplay(entity.width),
         worldSizeToDisplay(entity.height),
-        entity.kind === "floor" ? 0x3a4f5f : 0x4f9cff,
+        fill,
       );
       view.setOrigin(0.5, 0.5);
-      view.setStrokeStyle(3, entity.kind === "floor" ? 0x8fa6b8 : 0xd7ecff);
+      view.setStrokeStyle(3, stroke);
       this.entityViews.set(entity.id, view);
     }
 

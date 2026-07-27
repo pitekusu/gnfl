@@ -3,7 +3,7 @@ import type { StagePhase } from "@/game/protocol/stagePhase";
 /** Plain renderable body state. No Rapier handles. */
 export interface RenderEntityState {
   id: string;
-  kind: "box" | "floor" | "unknown";
+  kind: "box" | "floor" | "quay" | "unknown";
   x: number;
   y: number;
   angleRad: number;
