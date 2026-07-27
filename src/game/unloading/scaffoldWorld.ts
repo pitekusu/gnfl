@@ -15,6 +15,7 @@ import {
   DEFAULT_UNLOADING_LAYOUT,
   type UnloadingLayout,
 } from "@/game/unloading/layout";
+import { integrateCableTargetLength } from "@/game/unloading/hoistMotion";
 import { sampleBaseShipMotion } from "@/game/unloading/shipMotion";
 import { integrateTrolleyOnRail } from "@/game/unloading/trolleyMotion";
 
@@ -297,6 +298,19 @@ export class UnloadingScaffoldWorld {
       y: this.layout.crane.railY,
     });
     this.trolleyBody.setNextKinematicRotation(0);
+
+    // Hoist: change spring rest length (positive axis shortens = lift).
+    this.cableTargetLength = integrateCableTargetLength({
+      targetLength: this.cableTargetLength,
+      axis: this.control.hoistAxis,
+      dtSeconds: this.physicsDtSeconds,
+      maxSpeed: this.physics.hoist.maxSpeed,
+      axisDeadzone: this.physics.trolley.axisDeadzone,
+      fineMode: this.control.fineMode,
+      fineSpeedScale: this.physics.fineMode.speedScale,
+      minCableLength: this.physics.hoist.minCableLength,
+      maxCableLength: this.physics.hoist.maxCableLength,
+    });
 
     const pose = sampleBaseShipMotion(
       this.seed,

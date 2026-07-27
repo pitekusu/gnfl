@@ -72,6 +72,30 @@ describe("UnloadingScaffoldWorld", () => {
     world.free();
   });
 
+  it("raises the spreader when hoist axis is positive", async () => {
+    const rapier = await initRapier();
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "hoist-seed");
+    for (let i = 0; i < 180; i += 1) {
+      world.step();
+    }
+    const before = world.getSpreaderTranslation();
+    const lengthBefore = world.getCableTargetLength();
+
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      hoistAxis: 1,
+    });
+    for (let i = 0; i < 180; i += 1) {
+      world.step();
+    }
+
+    const after = world.getSpreaderTranslation();
+    expect(world.getCableTargetLength()).toBeLessThan(lengthBefore);
+    // Y-down: lifting moves the spreader toward the rail (smaller y).
+    expect(after.y).toBeLessThan(before.y);
+    world.free();
+  });
+
   it("sways the spreader after a trolley move then stop", async () => {
     const rapier = await initRapier();
     const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "sway-seed");

@@ -60,7 +60,7 @@ function rebuildWorld(seed: string, nextConfig: SimulationConfig): void {
   stageWorld?.free();
   config = nextConfig;
   stageSeed = seed;
-  // Phase 2 C7: free cask in hold + dual-cable spreader.
+  // Phase 2 C8: hoist target length + dual-cable spreader + free cask.
   stageWorld = UnloadingScaffoldWorld.create(
     rapier,
     nextConfig.gravityY,
