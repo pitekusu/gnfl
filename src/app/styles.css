@@ -137,13 +137,23 @@ button {
 }
 
 .game-layout {
+  /*
+   * Header + screen padding + toolbar + gaps ≈ chrome below the canvas budget.
+   * Canvas grows to the largest 16:9 that still fits the remaining viewport.
+   */
+  --game-chrome: 7.25rem;
+  --game-max-height: calc(100dvh - var(--game-chrome));
+  --game-max-width: min(100%, calc(var(--game-max-height) * 16 / 9));
+
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
+  width: 100%;
   min-height: 0;
+  min-width: 0;
 }
 
 .game-toolbar {
@@ -151,26 +161,49 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  width: min(100%, 1100px);
+  width: var(--game-max-width);
+  max-width: 100%;
   color: var(--muted);
   font-size: 0.95rem;
 }
 
 /*
- * Landscape playfield for a side-view stage.
- * Avoid stretching the canvas to full viewport height (felt too tall).
+ * Largest 16:9 playfield that fits the viewport (width- or height-limited).
+ * No fixed px cap — scales up on large monitors and down on small windows.
  */
 .phaser-host {
   flex: 0 0 auto;
-  width: min(100%, 1100px, calc(62vh * 16 / 9));
+  width: var(--game-max-width);
+  max-width: 100%;
   aspect-ratio: 16 / 9;
-  max-height: 62vh;
-  min-height: 280px;
+  max-height: var(--game-max-height);
+  height: auto;
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: 0.75rem;
   overflow: hidden;
   background: #050a0f;
   position: relative;
+}
+
+/* Slightly tighter chrome on short viewports so the stage stays larger. */
+@media (max-height: 720px) {
+  .game-layout {
+    --game-chrome: 6.25rem;
+  }
+
+  .screen.game-layout,
+  .game-layout.screen {
+    padding-block: 0.75rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .game-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    font-size: 0.85rem;
+  }
 }
 
 .phaser-host canvas {
