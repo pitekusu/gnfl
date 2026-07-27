@@ -7,41 +7,56 @@ export interface SnapshotBufferSample {
   alpha: number;
 }
 
+interface TimedSnapshot {
+  snapshot: RenderSnapshot;
+  /** Main-thread arrival time — worker clocks are not used for interpolation. */
+  receivedAtMs: number;
+}
+
 /**
  * Holds the last two worker snapshots and samples an interpolated pose
  * for display frames (requestAnimationFrame / Phaser update).
  */
 export class SnapshotBuffer {
-  private previous: RenderSnapshot | null = null;
-  private current: RenderSnapshot | null = null;
+  private previous: TimedSnapshot | null = null;
+  private current: TimedSnapshot | null = null;
 
-  public push(snapshot: RenderSnapshot): void {
-    if (this.current && snapshot.tick < this.current.tick) {
+  public push(
+    snapshot: RenderSnapshot,
+    receivedAtMs: number = performance.now(),
+  ): void {
+    if (this.current && snapshot.tick < this.current.snapshot.tick) {
       // Ignore out-of-order snapshots.
       return;
     }
     this.previous = this.current;
-    this.current = snapshot;
+    this.current = { snapshot, receivedAtMs };
   }
 
   public sample(nowMs: number): SnapshotBufferSample | null {
     if (!this.current) {
       return null;
     }
-    if (!this.previous || this.previous.tick === this.current.tick) {
-      return { snapshot: this.current, alpha: 1 };
+    if (!this.previous || this.previous.snapshot.tick === this.current.snapshot.tick) {
+      return { snapshot: this.current.snapshot, alpha: 1 };
     }
 
-    const span = this.current.generatedAtMs - this.previous.generatedAtMs;
+    const span = this.current.receivedAtMs - this.previous.receivedAtMs;
     if (span <= 0) {
-      return { snapshot: this.current, alpha: 1 };
+      return { snapshot: this.current.snapshot, alpha: 1 };
     }
 
-    const rawAlpha = (nowMs - this.previous.generatedAtMs) / span;
-    const alpha = clamp(rawAlpha, 0, 1);
+    const rawAlpha = (nowMs - this.previous.receivedAtMs) / span;
+    const alpha = clamp(rawAlpha, 0, 1.25);
+    // Allow slight extrapolation past the latest snapshot, then clamp poses.
+    const drawAlpha = clamp(alpha, 0, 1);
     return {
-      snapshot: interpolateSnapshots(this.previous, this.current, alpha),
-      alpha,
+      snapshot: interpolateSnapshots(
+        this.previous.snapshot,
+        this.current.snapshot,
+        drawAlpha,
+      ),
+      alpha: drawAlpha,
     };
   }
 

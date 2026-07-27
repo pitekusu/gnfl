@@ -30,7 +30,6 @@ const controller = new SimulationController({
     void seed;
     rapier = await initRapier();
     rebuildWorld(nextConfig);
-    startLoop();
   },
   onReset: async (seed, nextConfig) => {
     void seed;
@@ -60,9 +59,13 @@ function rebuildWorld(nextConfig: SimulationConfig): void {
   }
   demoWorld?.free();
   config = nextConfig;
-  demoWorld = GreyboxDemoWorld.create(rapier, nextConfig.gravityY);
+  demoWorld = GreyboxDemoWorld.create(
+    rapier,
+    nextConfig.gravityY,
+    nextConfig.physicsHz,
+  );
   stepState = createFixedStepState();
-  // Emit an initial pose so the renderer has something before the first step.
+  // Initial pose before the first physics step.
   post({
     type: "SNAPSHOT",
     snapshot: demoWorld.buildSnapshot(0, performance.now()),
@@ -104,7 +107,9 @@ function frame(): void {
   const elapsedSeconds = (now - lastFrameMs) / 1000;
   lastFrameMs = now;
 
-  if (!controller.isPaused && demoWorld && config && controller.isReady) {
+  // Step whenever the world exists. isReady is true after INIT returns; we also
+  // start the loop only after READY is posted (see handleMessage).
+  if (!controller.isPaused && demoWorld && config && !controller.isDisposed) {
     const advanced = advanceFixedStep(stepState, elapsedSeconds, {
       dtSeconds: physicsDtSeconds(config.physicsHz),
       maxCatchUpTicks: config.maxCatchUpTicks,
@@ -114,6 +119,15 @@ function frame(): void {
     for (let i = 0; i < advanced.steps; i += 1) {
       demoWorld.step();
       const tickAfter = stepState.tick - advanced.steps + i + 1;
+
+      if (
+        config.demoReplayTicks > 0 &&
+        tickAfter > 0 &&
+        tickAfter % config.demoReplayTicks === 0
+      ) {
+        demoWorld.resetBox();
+      }
+
       if (shouldEmitSnapshot(tickAfter, config.physicsHz, config.snapshotHz)) {
         post({
           type: "SNAPSHOT",
@@ -148,6 +162,18 @@ async function handleMessage(message: MainToWorkerMessage): Promise<void> {
   const replies = await controller.handle(message);
   for (const reply of replies) {
     post(reply);
+  }
+
+  // Start the physics loop only after INIT succeeded (READY), so isReady is set.
+  if (
+    (message.type === "INIT" || message.type === "RESET") &&
+    replies.some((reply) => reply.type === "READY")
+  ) {
+    startLoop();
+  }
+
+  if (message.type === "DISPOSE") {
+    stopLoop();
   }
 }
 

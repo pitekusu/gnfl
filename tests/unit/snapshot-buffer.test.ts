@@ -54,16 +54,17 @@ describe("interpolateSnapshots", () => {
 describe("SnapshotBuffer", () => {
   it("samples current snapshot when only one exists", () => {
     const buffer = new SnapshotBuffer();
-    buffer.push(makeSnapshot(1, 100, 3));
+    buffer.push(makeSnapshot(1, 100, 3), 150);
     const sample = buffer.sample(150);
     expect(sample?.snapshot.entities[0]?.x).toBe(3);
     expect(sample?.alpha).toBe(1);
   });
 
-  it("interpolates between previous and current using wall time", () => {
+  it("interpolates using main-thread receive times", () => {
     const buffer = new SnapshotBuffer();
-    buffer.push(makeSnapshot(1, 1000, 0));
-    buffer.push(makeSnapshot(2, 1020, 20));
+    // Worker generatedAtMs deliberately wrong / distant — buffer must use receive times.
+    buffer.push(makeSnapshot(1, 9_000_000, 0), 1000);
+    buffer.push(makeSnapshot(2, 9_000_050, 20), 1020);
     const sample = buffer.sample(1010);
     expect(sample?.snapshot.entities[0]?.x).toBeCloseTo(10);
     expect(sample?.alpha).toBeCloseTo(0.5);
@@ -71,8 +72,8 @@ describe("SnapshotBuffer", () => {
 
   it("ignores out-of-order ticks", () => {
     const buffer = new SnapshotBuffer();
-    buffer.push(makeSnapshot(2, 1000, 20));
-    buffer.push(makeSnapshot(1, 1010, 0));
+    buffer.push(makeSnapshot(2, 1000, 20), 1000);
+    buffer.push(makeSnapshot(1, 1010, 0), 1010);
     const sample = buffer.sample(1010);
     expect(sample?.snapshot.tick).toBe(2);
   });
