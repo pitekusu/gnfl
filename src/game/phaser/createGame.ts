@@ -1,7 +1,17 @@
 import Phaser from "phaser";
-import { BootScene } from "@/game/phaser/scenes/BootScene";
+import {
+  SimulationScene,
+  type SimulationStatusPayload,
+} from "@/game/phaser/scenes/SimulationScene";
 
-export async function createGame(parent: HTMLElement): Promise<Phaser.Game> {
+export interface CreateGameOptions {
+  onSimulationStatus?: (payload: SimulationStatusPayload) => void;
+}
+
+export async function createGame(
+  parent: HTMLElement,
+  options: CreateGameOptions = {},
+): Promise<Phaser.Game> {
   const width = Math.max(parent.clientWidth, 640);
   const height = Math.max(parent.clientHeight, 360);
 
@@ -11,7 +21,7 @@ export async function createGame(parent: HTMLElement): Promise<Phaser.Game> {
     width,
     height,
     backgroundColor: "#0a1520",
-    scene: [BootScene],
+    scene: [SimulationScene],
     scale: {
       mode: Phaser.Scale.RESIZE,
       autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -22,7 +32,11 @@ export async function createGame(parent: HTMLElement): Promise<Phaser.Game> {
     },
   });
 
-  await waitForSceneReady(game, BootScene.KEY);
+  if (options.onSimulationStatus) {
+    game.registry.set("onSimulationStatus", options.onSimulationStatus);
+  }
+
+  await waitForSceneReady(game, SimulationScene.KEY);
   return game;
 }
 
@@ -30,7 +44,7 @@ function waitForSceneReady(game: Phaser.Game, sceneKey: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const timeoutId = window.setTimeout(() => {
       reject(new Error(`Timed out waiting for scene ${sceneKey}`));
-    }, 10_000);
+    }, 15_000);
 
     const tryResolve = () => {
       const scene = game.scene.getScene(sceneKey);

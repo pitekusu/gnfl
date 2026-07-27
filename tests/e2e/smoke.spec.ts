@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("title screen opens and game canvas boots", async ({ page }) => {
+test("title screen opens and simulation worker becomes ready", async ({ page }) => {
   await page.goto("/");
 
   await expect(
@@ -12,8 +12,9 @@ test("title screen opens and game canvas boots", async ({ page }) => {
 
   const host = page.getByTestId("phaser-host");
   await expect(host).toBeVisible();
-  await expect(page.getByTestId("phaser-status")).toHaveText(/Phaser: ready/, {
-    timeout: 15_000,
-  });
+  await expect(page.getByTestId("phaser-status")).toHaveText(
+    /Phaser: ready · Worker: ready/,
+    { timeout: 30_000 },
+  );
   await expect(host.locator("canvas")).toBeVisible({ timeout: 15_000 });
 });
