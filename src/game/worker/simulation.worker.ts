@@ -5,9 +5,18 @@ import {
   type MainToWorkerMessage,
   type WorkerToMainMessage,
 } from "@/game/protocol";
+import { initRapier } from "@/game/simulation/rapierInit";
 import { SimulationController } from "@/game/simulation/simulationController";
 
-const controller = new SimulationController();
+const controller = new SimulationController({
+  onInit: async () => {
+    // Rapier World ownership begins after WASM init (demo bodies arrive next).
+    await initRapier();
+  },
+  onReset: async () => {
+    await initRapier();
+  },
+});
 
 function post(message: WorkerToMainMessage): void {
   self.postMessage(message);
