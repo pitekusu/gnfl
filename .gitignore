@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+cdk.out/
+*.tsbuildinfo
+
+# Test / tooling
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Local CDK / AWS
+.cdk.staging/
+
+# Playwright
+/playwright/.cache/
