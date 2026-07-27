@@ -89,11 +89,28 @@ export function interpolateSnapshots(
     };
   });
 
+  const previousCables = new Map(previous.cables.map((c) => [c.id, c]));
+  const cables = current.cables.map((cable) => {
+    const from = previousCables.get(cable.id);
+    if (!from) {
+      return cable;
+    }
+    return {
+      id: cable.id,
+      ax: lerp(from.ax, cable.ax, t),
+      ay: lerp(from.ay, cable.ay, t),
+      bx: lerp(from.bx, cable.bx, t),
+      by: lerp(from.by, cable.by, t),
+      tension: lerp(from.tension, cable.tension, t),
+    };
+  });
+
   return {
     tick: current.tick,
     generatedAtMs: lerp(previous.generatedAtMs, current.generatedAtMs, t),
     stagePhase: current.stagePhase,
     entities,
+    cables,
     instruments: {
       cableLoad: lerp(previous.instruments.cableLoad, current.instruments.cableLoad, t),
       sway: lerp(previous.instruments.sway, current.instruments.sway, t),

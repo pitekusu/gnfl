@@ -104,6 +104,7 @@ export class GreyboxDemoWorld {
           height: this.boxHalf.y * 2,
         },
       ],
+      cables: [],
       instruments: { cableLoad: 0, sway: 0 },
       weather: { windHint: 0, waveHint: 0 },
     };

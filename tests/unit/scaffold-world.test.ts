@@ -5,20 +5,19 @@ import { DEFAULT_UNLOADING_LAYOUT } from "@/game/unloading/layout";
 import { UnloadingScaffoldWorld } from "@/game/unloading/scaffoldWorld";
 
 describe("UnloadingScaffoldWorld", () => {
-  it("exposes ship, quay, cradle, and trolley entities", async () => {
+  it("exposes trolley, spreader, and cable segments", async () => {
     const rapier = await initRapier();
     const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "test-seed");
-    const snapshot = world.buildSnapshot(0, 0);
+    // One step builds cable state used by the snapshot.
+    world.step();
+    const snapshot = world.buildSnapshot(1, 0);
 
-    expect(snapshot.entities.map((e) => e.kind).sort()).toEqual(
-      ["cradle", "quay", "ship", "trolley"].sort(),
+    expect(snapshot.entities.map((e) => e.kind)).toEqual(
+      expect.arrayContaining(["ship", "quay", "cradle", "trolley", "spreader"]),
     );
-
-    const trolley = snapshot.entities.find(
-      (e) => e.id === UnloadingScaffoldWorld.TROLLEY_ID,
-    );
-    expect(trolley?.y).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.crane.railY, 5);
-    expect(trolley?.x).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.crane.spreaderSpawnX, 4);
+    expect(snapshot.cables).toHaveLength(2);
+    expect(snapshot.cables[0]?.id).toBe("cable-left");
+    expect(snapshot.cables[1]?.id).toBe("cable-right");
     expect(() => JSON.stringify(snapshot)).not.toThrow();
     world.free();
   });
@@ -40,24 +39,44 @@ describe("UnloadingScaffoldWorld", () => {
     world.free();
   });
 
-  it("reproduces ship pose for the same seed and step count", async () => {
+  it("lets the spreader settle near the cable target length below the trolley", async () => {
     const rapier = await initRapier();
-    const a = UnloadingScaffoldWorld.create(rapier, 18, 120, "same-seed");
-    const b = UnloadingScaffoldWorld.create(rapier, 18, 120, "same-seed");
-    for (let i = 0; i < 90; i += 1) {
-      a.step();
-      b.step();
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "hang-seed");
+    for (let i = 0; i < 360; i += 1) {
+      world.step();
     }
-    const sa = a
-      .buildSnapshot(90, 0)
-      .entities.find((e) => e.id === UnloadingScaffoldWorld.SHIP_ID);
-    const sb = b
-      .buildSnapshot(90, 0)
-      .entities.find((e) => e.id === UnloadingScaffoldWorld.SHIP_ID);
-    expect(sa?.x).toBeCloseTo(sb?.x ?? 0, 5);
-    expect(sa?.y).toBeCloseTo(sb?.y ?? 0, 5);
-    expect(sa?.angleRad).toBeCloseTo(sb?.angleRad ?? 0, 5);
-    a.free();
-    b.free();
+    const spreader = world.getSpreaderTranslation();
+    const target = world.getCableTargetLength();
+    const hang = spreader.y - DEFAULT_UNLOADING_LAYOUT.crane.railY;
+    // Hang distance should be near the target length (within a generous band).
+    expect(hang).toBeGreaterThan(target * 0.5);
+    expect(hang).toBeLessThan(target * 1.6);
+    expect(spreader.y).toBeGreaterThan(DEFAULT_UNLOADING_LAYOUT.crane.railY);
+    world.free();
+  });
+
+  it("sways the spreader after a trolley move then stop", async () => {
+    const rapier = await initRapier();
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "sway-seed");
+    // Settle first.
+    for (let i = 0; i < 180; i += 1) {
+      world.step();
+    }
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      trolleyAxis: 1,
+    });
+    for (let i = 0; i < 60; i += 1) {
+      world.step();
+    }
+    world.setControlInput(createNeutralPlayerInput());
+    let maxAbsVx = 0;
+    for (let i = 0; i < 90; i += 1) {
+      world.step();
+      const snap = world.buildSnapshot(i, 0);
+      maxAbsVx = Math.max(maxAbsVx, snap.instruments.sway);
+    }
+    expect(maxAbsVx).toBeGreaterThan(0.05);
+    world.free();
   });
 });

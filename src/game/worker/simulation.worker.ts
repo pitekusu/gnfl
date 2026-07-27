@@ -60,17 +60,19 @@ function rebuildWorld(seed: string, nextConfig: SimulationConfig): void {
   stageWorld?.free();
   config = nextConfig;
   stageSeed = seed;
-  // Phase 2 C5: quay + cradle + ship + rail trolley. Spreader/cables next.
+  // Phase 2 C6: dual-cable spreader hanging from the trolley.
   stageWorld = UnloadingScaffoldWorld.create(
     rapier,
     nextConfig.gravityY,
     nextConfig.physicsHz,
     stageSeed,
   );
-  stepState = createFixedStepState();
+  // One step evaluates cable anchors for the first SNAPSHOT.
+  stageWorld.step();
+  stepState = createFixedStepState(1);
   post({
     type: "SNAPSHOT",
-    snapshot: stageWorld.buildSnapshot(0, performance.now()),
+    snapshot: stageWorld.buildSnapshot(1, performance.now()),
   });
 }
 

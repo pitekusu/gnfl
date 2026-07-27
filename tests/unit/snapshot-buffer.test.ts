@@ -23,6 +23,7 @@ function makeSnapshot(
         height: 1,
       },
     ],
+    cables: [],
     instruments: { cableLoad: 0, sway: 0 },
     weather: { windHint: 0, waveHint: 0 },
   };

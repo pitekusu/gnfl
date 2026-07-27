@@ -5,6 +5,7 @@ export { createNeutralPlayerInput } from "@/game/protocol/playerInput";
 export type { SimulationConfig } from "@/game/protocol/simulationConfig";
 export { DEFAULT_SIMULATION_CONFIG } from "@/game/protocol/simulationConfig";
 export type {
+  CableRenderState,
   InstrumentState,
   RenderEntityState,
   RenderSnapshot,

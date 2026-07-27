@@ -28,6 +28,7 @@ export class SimulationScene extends Phaser.Scene {
   private client: SimulationClient | null = null;
   private readonly snapshotBuffer = new SnapshotBuffer();
   private readonly entityViews = new Map<string, Phaser.GameObjects.Rectangle>();
+  private cableGraphics: Phaser.GameObjects.Graphics | null = null;
   private statusText: Phaser.GameObjects.Text | null = null;
   private hintText: Phaser.GameObjects.Text | null = null;
   private unsubscribe: (() => void) | null = null;
@@ -40,6 +41,7 @@ export class SimulationScene extends Phaser.Scene {
   public create(): void {
     this.cameras.main.setBackgroundColor(0x0a1520);
     this.fitCamera();
+    this.cableGraphics = this.add.graphics().setDepth(20);
 
     this.statusText = this.add
       .text(12, 12, "worker: connecting", {
@@ -120,6 +122,23 @@ export class SimulationScene extends Phaser.Scene {
         this.entityViews.delete(id);
       }
     }
+    this.drawCables(snapshot);
+  }
+
+  private drawCables(snapshot: RenderSnapshot): void {
+    const g = this.cableGraphics;
+    if (!g) {
+      return;
+    }
+    g.clear();
+    for (const cable of snapshot.cables) {
+      const taut = cable.tension > 1;
+      g.lineStyle(taut ? 3 : 2, taut ? 0xe8eef4 : 0x6a7f90, 1);
+      g.beginPath();
+      g.moveTo(worldToDisplayX(cable.ax), worldToDisplayY(cable.ay));
+      g.lineTo(worldToDisplayX(cable.bx), worldToDisplayY(cable.by));
+      g.strokePath();
+    }
   }
 
   private syncEntity(entity: RenderEntityState): void {
@@ -138,6 +157,8 @@ export class SimulationScene extends Phaser.Scene {
       view.setStrokeStyle(entity.kind === "ship" ? 4 : 3, stroke);
       if (entity.kind === "ship") {
         view.setDepth(10);
+      } else if (entity.kind === "spreader" || entity.kind === "trolley") {
+        view.setDepth(15);
       }
       this.entityViews.set(entity.id, view);
     }
@@ -192,6 +213,8 @@ export class SimulationScene extends Phaser.Scene {
     this.client?.dispose();
     this.client = null;
     this.snapshotBuffer.clear();
+    this.cableGraphics?.destroy();
+    this.cableGraphics = null;
     for (const view of this.entityViews.values()) {
       view.destroy();
     }
@@ -211,6 +234,8 @@ function entityFillColor(kind: RenderEntityState["kind"]): number {
       return 0x7eb3d4;
     case "trolley":
       return 0xf0a030;
+    case "spreader":
+      return 0xd4573a;
     default:
       return 0x4f9cff;
   }
@@ -227,6 +252,8 @@ function entityStrokeColor(kind: RenderEntityState["kind"]): number {
       return 0xe8f4fc;
     case "trolley":
       return 0xffe0a8;
+    case "spreader":
+      return 0xffc4b0;
     default:
       return 0xd7ecff;
   }
