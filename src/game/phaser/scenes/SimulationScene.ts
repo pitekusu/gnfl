@@ -154,8 +154,9 @@ export class SimulationScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const targetHeight = DEMO_WORLD_HEIGHT * PIXELS_PER_UNIT;
     const targetWidth = DEMO_WORLD_WIDTH * PIXELS_PER_UNIT;
+    // Prefer filling the canvas; avoid over-zooming out so the ship stays large.
     const zoom = Math.min(cam.height / targetHeight, cam.width / targetWidth);
-    cam.setZoom(Math.max(0.25, Math.min(zoom * 0.92, 1.2)));
+    cam.setZoom(Math.max(0.55, Math.min(zoom * 0.98, 1.6)));
     cam.centerOn(worldToDisplayX(CAMERA_FOCUS_X), worldToDisplayY(CAMERA_FOCUS_Y));
   }
 
