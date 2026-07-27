@@ -20,14 +20,41 @@ Simulation worker foundation:
 - Protocol types for Main ↔ Worker messages
 - Fixed 120 Hz step loop with catch-up limit
 - Rapier 2D WASM inside the module worker only
-- Greybox floor + falling box demo
+- Greybox floor + falling box demo (archived under `simulation/demo/`)
 - 60 Hz `SNAPSHOT` posts + Phaser interpolation
 - Tab hide → pause; scene unmount → dispose worker
 - React only sees low-frequency ready/error status
 
+### Phase 2 — done (greybox crane)
+
+Unloading berth greybox on branch `feat/phase-2-crane-greybox`:
+
+- Layout + crane physics config (Zod)
+- Fixed quay + cradle; kinematic ship with seeded heave/pitch
+- Rail trolley, dual spring-damper cables, dynamic spreader
+- Free (unlocked) cask in the hold
+- Keyboard: A/D trolley, W/S hoist, Shift 緩速, Esc pause
+- React HUD: 振れ / 張力 / 緩速状態
+- Mouse levers deferred
+
+**Try the feel:** hard-stop after trolley move (swing), Shift for fine positioning.
+
 ### Not yet
 
-Crane controls, weather, scoring, ranking API, production deploy (Phases 2+).
+Lock/seat state machine (Phase 3), weather events (4), scoring (5), ranking API /
+AWS deploy (6–7), final art (8).
+
+## Controls (Phase 2)
+
+| Key           | Action                             |
+| ------------- | ---------------------------------- |
+| `A` / `←`     | Trolley left                       |
+| `D` / `→`     | Trolley right                      |
+| `W` / `↑`     | Hoist up (shorten cable)           |
+| `S` / `↓`     | Hoist down (lengthen cable)        |
+| `Shift`       | Fine mode（緩速状態）              |
+| `Esc`         | Pause toggle                       |
+| `Space` / `E` | Reserved (lock / e-stop — Phase 3) |
 
 ## Development
 
@@ -53,6 +80,8 @@ Useful scripts:
 
 - `docs/gnfl-implementation-directive.md` — implementation directive (source of truth)
 - `docs/gnfl-ChatGPT-Design-Directive.md` — art / CG / UI appearance directive
+- `docs/decisions/0001-phase1-worker-snapshot-architecture.md`
+- `docs/decisions/0002-phase2-crane-greybox.md`
 
 ## Stack (target)
 
