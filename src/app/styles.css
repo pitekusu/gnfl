@@ -224,3 +224,21 @@ button {
   font-size: 0.8rem;
   pointer-events: none;
 }
+
+/* DOM overlay — not inside Phaser camera, so Shift fine-mode is always readable. */
+.fine-mode-badge {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  z-index: 5;
+  padding: 0.45rem 0.9rem;
+  border-radius: 0.5rem;
+  border: 1px solid #ffcc33;
+  background: color-mix(in srgb, #1a1400 82%, #ffcc33 18%);
+  color: #ffdd66;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #000 40%, transparent);
+}

@@ -17,7 +17,8 @@ import { SimulationClient } from "@/game/worker/SimulationClient";
 
 export type SimulationStatusPayload =
   | { kind: "worker"; status: "connecting" | "ready" | "error"; detail?: string }
-  | { kind: "phaser"; status: "ready" };
+  | { kind: "phaser"; status: "ready" }
+  | { kind: "control"; fineMode: boolean };
 
 /**
  * Simulation scene: consumes worker snapshots and draws greybox entities.
@@ -144,8 +145,12 @@ export class SimulationScene extends Phaser.Scene {
       if (pausePressed) {
         this.client.togglePause();
       }
-      this.fineModeActive = input.fineMode;
-      this.fineModeText?.setVisible(this.fineModeActive);
+      if (input.fineMode !== this.fineModeActive) {
+        this.fineModeActive = input.fineMode;
+        this.fineModeText?.setVisible(this.fineModeActive);
+        // React HUD (reliable over canvas) — Phaser text alone is easy to miss with camera zoom.
+        this.emitStatus({ kind: "control", fineMode: this.fineModeActive });
+      }
       // Always send latched axes so the worker can coast to zero when keys release.
       this.client.sendInput(input);
     }

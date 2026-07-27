@@ -11,6 +11,7 @@ export function PhaserGame() {
   const gameRef = useRef<Phaser.Game | null>(null);
   const [phaserStatus, setPhaserStatus] = useState("initializing");
   const [workerStatus, setWorkerStatus] = useState("idle");
+  const [fineMode, setFineMode] = useState(false);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -30,6 +31,10 @@ export function PhaserGame() {
             }
             if (payload.kind === "phaser") {
               setPhaserStatus(payload.status);
+              return;
+            }
+            if (payload.kind === "control") {
+              setFineMode(payload.fineMode);
               return;
             }
             if (payload.status === "error") {
@@ -64,8 +69,14 @@ export function PhaserGame() {
 
   return (
     <div className="phaser-host" ref={hostRef} data-testid="phaser-host">
+      {fineMode ? (
+        <div className="fine-mode-badge" data-testid="fine-mode-badge" role="status">
+          緩速状態
+        </div>
+      ) : null}
       <div className="phaser-status" data-testid="phaser-status">
         Phaser: {phaserStatus} · Worker: {workerStatus}
+        {fineMode ? " · 緩速状態" : ""}
       </div>
     </div>
   );
