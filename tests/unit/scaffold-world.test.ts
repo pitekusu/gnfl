@@ -1,54 +1,42 @@
 import { describe, expect, it } from "vitest";
+import { createNeutralPlayerInput } from "@/game/protocol";
 import { initRapier } from "@/game/simulation/rapierInit";
 import { DEFAULT_UNLOADING_LAYOUT } from "@/game/unloading/layout";
 import { UnloadingScaffoldWorld } from "@/game/unloading/scaffoldWorld";
 
 describe("UnloadingScaffoldWorld", () => {
-  it("exposes ship, quay, and cradle entities", async () => {
+  it("exposes ship, quay, cradle, and trolley entities", async () => {
     const rapier = await initRapier();
     const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "test-seed");
     const snapshot = world.buildSnapshot(0, 0);
 
     expect(snapshot.entities.map((e) => e.kind).sort()).toEqual(
-      ["cradle", "quay", "ship"].sort(),
+      ["cradle", "quay", "ship", "trolley"].sort(),
     );
 
-    const ship = snapshot.entities.find((e) => e.id === UnloadingScaffoldWorld.SHIP_ID);
-    const quay = snapshot.entities.find((e) => e.id === UnloadingScaffoldWorld.QUAY_ID);
-    const cradle = snapshot.entities.find(
-      (e) => e.id === UnloadingScaffoldWorld.CRADLE_ID,
+    const trolley = snapshot.entities.find(
+      (e) => e.id === UnloadingScaffoldWorld.TROLLEY_ID,
     );
-
-    expect(ship?.x).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.ship.restCenterX, 4);
-    expect(quay?.x).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.quay.centerX, 5);
-    expect(cradle?.x).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.cradle.centerX, 5);
+    expect(trolley?.y).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.crane.railY, 5);
+    expect(trolley?.x).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.crane.spreaderSpawnX, 4);
     expect(() => JSON.stringify(snapshot)).not.toThrow();
     world.free();
   });
 
-  it("moves the kinematic ship over time for a given seed", async () => {
+  it("moves the trolley along the rail from control input", async () => {
     const rapier = await initRapier();
-    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "motion-seed");
-    const before = world.buildSnapshot(0, 0);
-    const shipBefore = before.entities.find(
-      (e) => e.id === UnloadingScaffoldWorld.SHIP_ID,
-    );
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "trolley-seed");
+    const startX = world.getTrolleyX();
 
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      trolleyAxis: 1,
+    });
     for (let i = 0; i < 120; i += 1) {
       world.step();
     }
 
-    const after = world.buildSnapshot(120, 1);
-    const shipAfter = after.entities.find(
-      (e) => e.id === UnloadingScaffoldWorld.SHIP_ID,
-    );
-
-    expect(shipBefore).toBeDefined();
-    expect(shipAfter).toBeDefined();
-    const moved =
-      Math.abs((shipAfter?.y ?? 0) - (shipBefore?.y ?? 0)) > 1e-4 ||
-      Math.abs((shipAfter?.angleRad ?? 0) - (shipBefore?.angleRad ?? 0)) > 1e-4;
-    expect(moved).toBe(true);
+    expect(world.getTrolleyX()).toBeGreaterThan(startX + 0.5);
     world.free();
   });
 

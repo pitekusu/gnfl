@@ -209,6 +209,8 @@ function entityFillColor(kind: RenderEntityState["kind"]): number {
     case "ship":
       // High contrast vs dark sea background so the hull reads clearly.
       return 0x7eb3d4;
+    case "trolley":
+      return 0xf0a030;
     default:
       return 0x4f9cff;
   }
@@ -223,6 +225,8 @@ function entityStrokeColor(kind: RenderEntityState["kind"]): number {
       return 0xc4a574;
     case "ship":
       return 0xe8f4fc;
+    case "trolley":
+      return 0xffe0a8;
     default:
       return 0xd7ecff;
   }

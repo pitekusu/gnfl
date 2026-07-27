@@ -1,50 +1,68 @@
-import type { RenderSnapshot } from "@/game/protocol";
+import type { PlayerInput, RenderSnapshot } from "@/game/protocol";
+import { createNeutralPlayerInput } from "@/game/protocol";
 import type { RapierModule } from "@/game/simulation/rapierInit";
 import type RAPIER from "@dimforge/rapier2d-compat";
+import {
+  DEFAULT_CRANE_PHYSICS_CONFIG,
+  type CranePhysicsConfig,
+} from "@/game/unloading/cranePhysicsConfig";
 import {
   DEFAULT_UNLOADING_LAYOUT,
   type UnloadingLayout,
 } from "@/game/unloading/layout";
 import { sampleBaseShipMotion } from "@/game/unloading/shipMotion";
+import { integrateTrolleyOnRail } from "@/game/unloading/trolleyMotion";
 
 /**
- * Phase 2 world foundation: fixed quay/cradle + kinematic moored ship.
- * Trolley, spreader, cables, and cask land in later commits.
+ * Phase 2 world: static quay/cradle, kinematic ship, kinematic trolley.
+ * Spreader, cables, and cask land in later commits.
  */
 export class UnloadingScaffoldWorld {
   public static readonly QUAY_ID = "scaffold-quay";
   public static readonly CRADLE_ID = "scaffold-cradle";
   public static readonly SHIP_ID = "scaffold-ship";
+  public static readonly TROLLEY_ID = "scaffold-trolley";
 
   private readonly world: RAPIER.World;
   private readonly quayBody: RAPIER.RigidBody;
   private readonly cradleBody: RAPIER.RigidBody;
   private readonly shipBody: RAPIER.RigidBody;
+  private readonly trolleyBody: RAPIER.RigidBody;
   private readonly layout: UnloadingLayout;
+  private readonly physics: CranePhysicsConfig;
   private readonly physicsDtSeconds: number;
   private readonly physicsHz: number;
   private readonly seed: string;
   private lastHeave = 0;
   private tick = 0;
+  private trolleyX: number;
+  private trolleyVelocity = 0;
+  private control: PlayerInput = createNeutralPlayerInput();
 
   private constructor(
     world: RAPIER.World,
     quayBody: RAPIER.RigidBody,
     cradleBody: RAPIER.RigidBody,
     shipBody: RAPIER.RigidBody,
+    trolleyBody: RAPIER.RigidBody,
     layout: UnloadingLayout,
+    physics: CranePhysicsConfig,
     physicsDtSeconds: number,
     physicsHz: number,
     seed: string,
+    trolleyX: number,
   ) {
     this.world = world;
     this.quayBody = quayBody;
     this.cradleBody = cradleBody;
     this.shipBody = shipBody;
+    this.trolleyBody = trolleyBody;
     this.layout = layout;
+    this.physics = physics;
     this.physicsDtSeconds = physicsDtSeconds;
     this.physicsHz = physicsHz;
     this.seed = seed;
+    this.trolleyX = trolleyX;
   }
 
   public static create(
@@ -53,6 +71,7 @@ export class UnloadingScaffoldWorld {
     physicsHz: number,
     seed: string,
     layout: UnloadingLayout = DEFAULT_UNLOADING_LAYOUT,
+    physics: CranePhysicsConfig = DEFAULT_CRANE_PHYSICS_CONFIG,
   ): UnloadingScaffoldWorld {
     const physicsDtSeconds = 1 / physicsHz;
     const world = new rapier.World({ x: 0, y: gravityY });
@@ -108,7 +127,6 @@ export class UnloadingScaffoldWorld {
         .setRotation(initialShip.angleRad),
     );
 
-    // Hull collider (visual approx).
     world.createCollider(
       rapier.ColliderDesc.cuboid(
         layout.ship.halfWidth,
@@ -117,7 +135,6 @@ export class UnloadingScaffoldWorld {
       shipBody,
     );
 
-    // Hold floor + walls in ship-local space (follow kinematic transform).
     const holdFloorY = layout.ship.holdFloorOffsetY;
     world.createCollider(
       rapier.ColliderDesc.cuboid(layout.ship.holdHalfWidth, 0.15)
@@ -145,23 +162,73 @@ export class UnloadingScaffoldWorld {
       shipBody,
     );
 
+    const trolleyX = layout.crane.spreaderSpawnX;
+    const trolleyBody = world.createRigidBody(
+      rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(
+        trolleyX,
+        layout.crane.railY,
+      ),
+    );
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(
+        layout.crane.trolleyHalfWidth,
+        layout.crane.trolleyHalfHeight,
+      ).setFriction(0.2),
+      trolleyBody,
+    );
+
     const stage = new UnloadingScaffoldWorld(
       world,
       quayBody,
       cradleBody,
       shipBody,
+      trolleyBody,
       layout,
+      physics,
       physicsDtSeconds,
       physicsHz,
       seed,
+      trolleyX,
     );
     stage.lastHeave = initialShip.heave;
     return stage;
   }
 
+  /** Apply latest player input (axes are latched until the next call). */
+  public setControlInput(input: PlayerInput): void {
+    this.control = input;
+  }
+
+  public getTrolleyX(): number {
+    return this.trolleyX;
+  }
+
   public step(): void {
     this.tick += 1;
     const elapsedSeconds = this.tick / this.physicsHz;
+
+    const trolley = integrateTrolleyOnRail({
+      x: this.trolleyX,
+      velocity: this.trolleyVelocity,
+      axis: this.control.trolleyAxis,
+      dtSeconds: this.physicsDtSeconds,
+      maxSpeed: this.physics.trolley.maxSpeed,
+      acceleration: this.physics.trolley.acceleration,
+      axisDeadzone: this.physics.trolley.axisDeadzone,
+      fineMode: this.control.fineMode,
+      fineSpeedScale: this.physics.fineMode.speedScale,
+      railMinX: this.layout.crane.railMinX,
+      railMaxX: this.layout.crane.railMaxX,
+      trolleyHalfWidth: this.layout.crane.trolleyHalfWidth,
+    });
+    this.trolleyX = trolley.x;
+    this.trolleyVelocity = trolley.velocity;
+    this.trolleyBody.setNextKinematicTranslation({
+      x: this.trolleyX,
+      y: this.layout.crane.railY,
+    });
+    this.trolleyBody.setNextKinematicRotation(0);
+
     const pose = sampleBaseShipMotion(
       this.seed,
       elapsedSeconds,
@@ -169,7 +236,6 @@ export class UnloadingScaffoldWorld {
         x: this.layout.ship.restCenterX,
         y: this.layout.ship.restCenterY,
       },
-      // Phase 4 will feed a non-zero envelope here.
       { highWaveEnvelope: 0 },
     );
     this.lastHeave = pose.heave;
@@ -184,6 +250,7 @@ export class UnloadingScaffoldWorld {
     const quay = this.quayBody.translation();
     const cradle = this.cradleBody.translation();
     const ship = this.shipBody.translation();
+    const trolley = this.trolleyBody.translation();
 
     return {
       tick,
@@ -216,6 +283,15 @@ export class UnloadingScaffoldWorld {
           angleRad: this.cradleBody.rotation(),
           width: this.layout.cradle.halfWidth * 2,
           height: this.layout.cradle.halfHeight * 2,
+        },
+        {
+          id: UnloadingScaffoldWorld.TROLLEY_ID,
+          kind: "trolley",
+          x: trolley.x,
+          y: trolley.y,
+          angleRad: this.trolleyBody.rotation(),
+          width: this.layout.crane.trolleyHalfWidth * 2,
+          height: this.layout.crane.trolleyHalfHeight * 2,
         },
       ],
       instruments: { cableLoad: 0, sway: 0 },

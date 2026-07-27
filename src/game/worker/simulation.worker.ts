@@ -60,7 +60,7 @@ function rebuildWorld(seed: string, nextConfig: SimulationConfig): void {
   stageWorld?.free();
   config = nextConfig;
   stageSeed = seed;
-  // Phase 2 C4: quay + cradle + kinematic ship. Crane arrives later.
+  // Phase 2 C5: quay + cradle + ship + rail trolley. Spreader/cables next.
   stageWorld = UnloadingScaffoldWorld.create(
     rapier,
     nextConfig.gravityY,
@@ -116,6 +116,7 @@ function frame(): void {
     stepState = advanced.state;
 
     for (let i = 0; i < advanced.steps; i += 1) {
+      stageWorld.setControlInput(controller.input);
       stageWorld.step();
       const tickAfter = stepState.tick - advanced.steps + i + 1;
 
