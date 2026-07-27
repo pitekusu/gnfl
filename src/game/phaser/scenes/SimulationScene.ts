@@ -71,7 +71,7 @@ export class SimulationScene extends Phaser.Scene {
       .text(
         12,
         56,
-        "A/D or ←/→ trolley · W/S or ↑/↓ hoist · Shift fine · Space lock · E stop · Esc pause",
+        "A/D or ←/→ 横行 · W/S or ↑/↓ 巻上/巻下 · Shift 緩速 · Space ロック · E 非常停止 · Esc 一時停止",
         {
           fontFamily: "Segoe UI, Noto Sans JP, sans-serif",
           fontSize: "12px",
@@ -82,14 +82,17 @@ export class SimulationScene extends Phaser.Scene {
       .setDepth(1000);
 
     this.fineModeText = this.add
-      .text(12, 76, "", {
+      .text(12, 78, "緩速状態", {
         fontFamily: "Segoe UI, Noto Sans JP, sans-serif",
-        fontSize: "14px",
-        color: "#f0c040",
+        fontSize: "18px",
+        color: "#ffcc33",
         fontStyle: "bold",
+        backgroundColor: "#000000aa",
+        padding: { x: 8, y: 4 },
       })
       .setScrollFactor(0)
-      .setDepth(1000);
+      .setDepth(2000)
+      .setVisible(false);
 
     this.emitStatus({ kind: "worker", status: "connecting" });
     this.emitStatus({ kind: "phaser", status: "ready" });
@@ -142,7 +145,7 @@ export class SimulationScene extends Phaser.Scene {
         this.client.togglePause();
       }
       this.fineModeActive = input.fineMode;
-      this.fineModeText?.setText(this.fineModeActive ? "FINE MODE" : "");
+      this.fineModeText?.setVisible(this.fineModeActive);
       // Always send latched axes so the worker can coast to zero when keys release.
       this.client.sendInput(input);
     }

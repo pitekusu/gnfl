@@ -16,18 +16,36 @@ export class CraneKeyboardBinder {
   private lockEdge = false;
   private emergencyEdge = false;
   private pauseEdge = false;
+  private shiftHeld = false;
   private bound = false;
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
-    if (!this.relevantCodes.has(event.code)) {
+    // Shift: track via both code and key — some browsers are flaky with only one.
+    if (
+      event.key === "Shift" ||
+      event.code === "ShiftLeft" ||
+      event.code === "ShiftRight"
+    ) {
+      this.shiftHeld = true;
+      this.downCodes.add(event.code.startsWith("Shift") ? event.code : "ShiftLeft");
+    }
+
+    if (!this.relevantCodes.has(event.code) && event.key !== "Shift") {
       return;
     }
     // Prevent page scroll on arrows / space while playing.
-    event.preventDefault();
-    if (this.downCodes.has(event.code)) {
-      return;
+    if (this.relevantCodes.has(event.code)) {
+      event.preventDefault();
     }
-    this.downCodes.add(event.code);
+    if (this.downCodes.has(event.code)) {
+      // Still allow shift tracking above; ignore repeat for edges.
+      if (event.repeat) {
+        return;
+      }
+    } else if (this.relevantCodes.has(event.code)) {
+      this.downCodes.add(event.code);
+    }
+
     if ((CRANE_KEY_CODES.lock as readonly string[]).includes(event.code)) {
       this.lockEdge = true;
     }
@@ -40,6 +58,15 @@ export class CraneKeyboardBinder {
   };
 
   private readonly onKeyUp = (event: KeyboardEvent): void => {
+    if (
+      event.key === "Shift" ||
+      event.code === "ShiftLeft" ||
+      event.code === "ShiftRight"
+    ) {
+      this.shiftHeld = false;
+      this.downCodes.delete("ShiftLeft");
+      this.downCodes.delete("ShiftRight");
+    }
     if (!this.relevantCodes.has(event.code)) {
       return;
     }
@@ -77,8 +104,12 @@ export class CraneKeyboardBinder {
     this.lockEdge = false;
     this.emergencyEdge = false;
     this.pauseEdge = false;
+    const input = mapKeyboardToPlayerInput(this.downCodes, edges);
+    if (this.shiftHeld) {
+      input.fineMode = true;
+    }
     return {
-      input: mapKeyboardToPlayerInput(this.downCodes, edges),
+      input,
       pausePressed: edges.pausePressed,
     };
   }
