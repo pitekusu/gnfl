@@ -154,13 +154,21 @@ export class SimulationScene extends Phaser.Scene {
         fill,
       );
       view.setOrigin(0.5, 0.5);
-      view.setStrokeStyle(entity.kind === "ship" ? 4 : 3, stroke);
+      // Ship is a hollow hold outline so the free cask is visible inside.
       if (entity.kind === "ship") {
-        view.setDepth(10);
+        view.setFillStyle(fill, 0.18);
+        view.setStrokeStyle(4, stroke, 1);
+        view.setDepth(8);
       } else if (entity.kind === "cask") {
-        view.setDepth(12);
+        view.setFillStyle(fill, 1);
+        view.setStrokeStyle(4, stroke, 1);
+        view.setDepth(14);
       } else if (entity.kind === "spreader" || entity.kind === "trolley") {
+        view.setStrokeStyle(3, stroke);
         view.setDepth(15);
+      } else {
+        view.setStrokeStyle(3, stroke);
+        view.setDepth(5);
       }
       this.entityViews.set(entity.id, view);
     }
@@ -239,7 +247,8 @@ function entityFillColor(kind: RenderEntityState["kind"]): number {
     case "spreader":
       return 0xd4573a;
     case "cask":
-      return 0x9a7b4f;
+      // Bright amber so the free cask reads clearly inside the hollow ship.
+      return 0xffb020;
     default:
       return 0x4f9cff;
   }
@@ -253,13 +262,13 @@ function entityStrokeColor(kind: RenderEntityState["kind"]): number {
     case "cradle":
       return 0xc4a574;
     case "ship":
-      return 0xe8f4fc;
+      return 0xb8d4e8;
     case "trolley":
       return 0xffe0a8;
     case "spreader":
       return 0xffc4b0;
     case "cask":
-      return 0xe2c792;
+      return 0xfff0c8;
     default:
       return 0xd7ecff;
   }
