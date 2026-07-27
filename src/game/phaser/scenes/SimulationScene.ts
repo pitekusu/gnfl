@@ -4,6 +4,8 @@ import { SnapshotBuffer } from "@/game/phaser/snapshotBuffer";
 import { visibilityToSimulationAction } from "@/game/phaser/visibilityControl";
 import {
   CAMERA_FOCUS_Y,
+  DEMO_WORLD_HEIGHT,
+  PIXELS_PER_UNIT,
   worldSizeToDisplay,
   worldToDisplayX,
   worldToDisplayY,
@@ -25,7 +27,9 @@ export class SimulationScene extends Phaser.Scene {
   private readonly snapshotBuffer = new SnapshotBuffer();
   private readonly entityViews = new Map<string, Phaser.GameObjects.Rectangle>();
   private statusText: Phaser.GameObjects.Text | null = null;
+  private hintText: Phaser.GameObjects.Text | null = null;
   private unsubscribe: (() => void) | null = null;
+  private snapshotCount = 0;
 
   public constructor() {
     super(SimulationScene.KEY);
@@ -33,13 +37,22 @@ export class SimulationScene extends Phaser.Scene {
 
   public create(): void {
     this.cameras.main.setBackgroundColor(0x0a1520);
-    this.cameras.main.centerOn(worldToDisplayX(0), worldToDisplayY(CAMERA_FOCUS_Y));
+    this.fitCamera();
 
     this.statusText = this.add
       .text(12, 12, "worker: connecting", {
         fontFamily: "Segoe UI, Noto Sans JP, sans-serif",
         fontSize: "14px",
         color: "#8fa6b8",
+      })
+      .setScrollFactor(0)
+      .setDepth(1000);
+
+    this.hintText = this.add
+      .text(12, 34, "waiting for snapshots…", {
+        fontFamily: "Segoe UI, Noto Sans JP, sans-serif",
+        fontSize: "13px",
+        color: "#6f8799",
       })
       .setScrollFactor(0)
       .setDepth(1000);
@@ -55,7 +68,17 @@ export class SimulationScene extends Phaser.Scene {
           this.emitStatus({ kind: "worker", status: "ready" });
           break;
         case "SNAPSHOT":
-          this.snapshotBuffer.push(message.snapshot);
+          this.snapshotCount += 1;
+          // Stamp with main-thread time so interpolation does not depend on worker clocks.
+          this.snapshotBuffer.push(message.snapshot, performance.now());
+          if (this.snapshotCount === 1 || this.snapshotCount % 30 === 0) {
+            const box = message.snapshot.entities.find((e) => e.kind === "box");
+            this.hintText?.setText(
+              box
+                ? `snapshots: ${this.snapshotCount} · box y=${box.y.toFixed(2)} (drop + floor loop)`
+                : `snapshots: ${this.snapshotCount}`,
+            );
+          }
           break;
         case "ERROR":
           this.statusText?.setText(`worker error: ${message.code}`);
@@ -107,9 +130,10 @@ export class SimulationScene extends Phaser.Scene {
         worldToDisplayY(entity.y),
         worldSizeToDisplay(entity.width),
         worldSizeToDisplay(entity.height),
-        entity.kind === "floor" ? 0x243441 : 0x4f9cff,
+        entity.kind === "floor" ? 0x3a4f5f : 0x4f9cff,
       );
-      view.setStrokeStyle(2, entity.kind === "floor" ? 0x3d5566 : 0x9ec5ff);
+      view.setOrigin(0.5, 0.5);
+      view.setStrokeStyle(3, entity.kind === "floor" ? 0x8fa6b8 : 0xd7ecff);
       this.entityViews.set(entity.id, view);
     }
 
@@ -121,9 +145,20 @@ export class SimulationScene extends Phaser.Scene {
     view.setRotation(entity.angleRad);
   }
 
+  private fitCamera(): void {
+    const cam = this.cameras.main;
+    const targetHeight = DEMO_WORLD_HEIGHT * PIXELS_PER_UNIT;
+    const zoom = Math.min(
+      cam.height / targetHeight,
+      cam.width / (16 * PIXELS_PER_UNIT),
+    );
+    cam.setZoom(Math.max(0.35, Math.min(zoom * 0.92, 1.4)));
+    cam.centerOn(worldToDisplayX(0), worldToDisplayY(CAMERA_FOCUS_Y));
+  }
+
   private handleResize(gameSize: Phaser.Structs.Size): void {
     this.cameras.resize(gameSize.width, gameSize.height);
-    this.cameras.main.centerOn(worldToDisplayX(0), worldToDisplayY(CAMERA_FOCUS_Y));
+    this.fitCamera();
   }
 
   private readonly handleVisibilityChange = (): void => {

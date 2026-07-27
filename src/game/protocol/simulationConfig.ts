@@ -11,11 +11,19 @@ export interface SimulationConfig {
   maxCatchUpTicks: number;
   /** Gravity Y in game units / s^2 (positive = down for our Rapier setup). */
   gravityY: number;
+  /**
+   * Phase 1 demo: replay the drop every N physics ticks so the fall stays visible.
+   * 0 disables replay.
+   */
+  demoReplayTicks: number;
 }
 
 export const DEFAULT_SIMULATION_CONFIG: SimulationConfig = {
   physicsHz: 120,
   snapshotHz: 60,
   maxCatchUpTicks: 8,
-  gravityY: 30,
+  // Mild gravity so the drop lasts ~1.5–2s and is easy to notice.
+  gravityY: 12,
+  // Replay every 4 seconds at 120 Hz.
+  demoReplayTicks: 480,
 };
