@@ -4,8 +4,10 @@ export function GameScreen() {
   return (
     <section className="screen game-layout" aria-label="Game">
       <div className="game-toolbar">
-        <span>操作: A/D 横行 · W/S 巻上 · Shift で右上に「緩速状態」表示</span>
-        <span>Rapier @ 120 Hz · snapshots @ 60 Hz</span>
+        <span>
+          Phase 2 greybox: 急停止で振れ確認 · Shift 緩速 · A/D 横行 · W/S 巻上
+        </span>
+        <span>DoD: 振れ / 急停止 / 緩速位置合わせ</span>
       </div>
       <PhaserGame />
     </section>

@@ -1,6 +1,10 @@
 import Phaser from "phaser";
 import { CraneKeyboardBinder } from "@/game/input/CraneKeyboardBinder";
 import type { RenderEntityState, RenderSnapshot } from "@/game/protocol";
+import {
+  drawDynamicUnloadingOverlays,
+  drawStaticUnloadingScenery,
+} from "@/game/phaser/drawUnloadingScenery";
 import { SnapshotBuffer } from "@/game/phaser/snapshotBuffer";
 import { visibilityToSimulationAction } from "@/game/phaser/visibilityControl";
 import {
@@ -31,6 +35,8 @@ export class SimulationScene extends Phaser.Scene {
   private readonly snapshotBuffer = new SnapshotBuffer();
   private readonly entityViews = new Map<string, Phaser.GameObjects.Rectangle>();
   private readonly keyboard = new CraneKeyboardBinder();
+  private sceneryGraphics: Phaser.GameObjects.Graphics | null = null;
+  private overlayGraphics: Phaser.GameObjects.Graphics | null = null;
   private cableGraphics: Phaser.GameObjects.Graphics | null = null;
   private statusText: Phaser.GameObjects.Text | null = null;
   private hintText: Phaser.GameObjects.Text | null = null;
@@ -46,9 +52,12 @@ export class SimulationScene extends Phaser.Scene {
   }
 
   public create(): void {
-    this.cameras.main.setBackgroundColor(0x0a1520);
+    this.cameras.main.setBackgroundColor(0x071018);
     this.fitCamera();
+    this.sceneryGraphics = this.add.graphics().setDepth(1);
+    this.overlayGraphics = this.add.graphics().setDepth(9);
     this.cableGraphics = this.add.graphics().setDepth(20);
+    drawStaticUnloadingScenery(this.sceneryGraphics);
 
     this.statusText = this.add
       .text(12, 12, "worker: connecting", {
@@ -111,11 +120,12 @@ export class SimulationScene extends Phaser.Scene {
           this.snapshotCount += 1;
           // Stamp with main-thread time so interpolation does not depend on worker clocks.
           this.snapshotBuffer.push(message.snapshot, performance.now());
-          if (this.snapshotCount === 1 || this.snapshotCount % 30 === 0) {
-            const kinds = message.snapshot.entities.map((e) => e.kind).join(", ");
-            const paused = this.client?.isPausedByUser() ? " · PAUSED" : "";
+          if (this.snapshotCount === 1 || this.snapshotCount % 20 === 0) {
+            const sway = message.snapshot.instruments.sway;
+            const load = message.snapshot.instruments.cableLoad;
+            const paused = this.client?.isPausedByUser() ? " · 一時停止" : "";
             this.hintText?.setText(
-              `snapshots: ${this.snapshotCount} · entities: ${kinds || "(none)"}${paused}`,
+              `振れ ${sway.toFixed(2)} · 張力 ${load.toFixed(0)}${paused}`,
             );
           }
           break;
@@ -174,6 +184,10 @@ export class SimulationScene extends Phaser.Scene {
         this.entityViews.delete(id);
       }
     }
+    if (this.overlayGraphics) {
+      this.overlayGraphics.clear();
+      drawDynamicUnloadingOverlays(this.overlayGraphics, snapshot);
+    }
     this.drawCables(snapshot);
   }
 
@@ -184,8 +198,14 @@ export class SimulationScene extends Phaser.Scene {
     }
     g.clear();
     for (const cable of snapshot.cables) {
-      const taut = cable.tension > 1;
-      g.lineStyle(taut ? 3 : 2, taut ? 0xe8eef4 : 0x6a7f90, 1);
+      const taut = cable.tension > 8;
+      // Shadow line for readabilty, then main wire.
+      g.lineStyle(5, 0x000000, 0.35);
+      g.beginPath();
+      g.moveTo(worldToDisplayX(cable.ax), worldToDisplayY(cable.ay));
+      g.lineTo(worldToDisplayX(cable.bx), worldToDisplayY(cable.by));
+      g.strokePath();
+      g.lineStyle(taut ? 3.5 : 2.5, taut ? 0xf2f6fa : 0x8fa3b3, 1);
       g.beginPath();
       g.moveTo(worldToDisplayX(cable.ax), worldToDisplayY(cable.ay));
       g.lineTo(worldToDisplayX(cable.bx), worldToDisplayY(cable.by));
@@ -277,6 +297,10 @@ export class SimulationScene extends Phaser.Scene {
     this.client = null;
     this.workerReady = false;
     this.snapshotBuffer.clear();
+    this.sceneryGraphics?.destroy();
+    this.sceneryGraphics = null;
+    this.overlayGraphics?.destroy();
+    this.overlayGraphics = null;
     this.cableGraphics?.destroy();
     this.cableGraphics = null;
     this.controlsText?.destroy();

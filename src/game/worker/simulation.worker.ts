@@ -60,7 +60,7 @@ function rebuildWorld(seed: string, nextConfig: SimulationConfig): void {
   stageWorld?.free();
   config = nextConfig;
   stageSeed = seed;
-  // Phase 2 C10: fine-mode scales trolley/hoist; keyboard drives PlayerInput.
+  // Phase 2 C12: greybox unloading scene with keyboard crane control.
   stageWorld = UnloadingScaffoldWorld.create(
     rapier,
     nextConfig.gravityY,
