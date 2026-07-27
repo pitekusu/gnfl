@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { RenderEntityState, RenderSnapshot } from "@/game/protocol";
 import { SnapshotBuffer } from "@/game/phaser/snapshotBuffer";
+import { visibilityToSimulationAction } from "@/game/phaser/visibilityControl";
 import {
   CAMERA_FOCUS_Y,
   worldSizeToDisplay,
@@ -70,6 +71,7 @@ export class SimulationScene extends Phaser.Scene {
     });
     this.client.start({ seed: "phase1-greybox" });
 
+    document.addEventListener("visibilitychange", this.handleVisibilityChange);
     this.scale.on("resize", this.handleResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.onShutdown, this);
     this.events.once(Phaser.Scenes.Events.DESTROY, this.onShutdown, this);
@@ -124,6 +126,18 @@ export class SimulationScene extends Phaser.Scene {
     this.cameras.main.centerOn(worldToDisplayX(0), worldToDisplayY(CAMERA_FOCUS_Y));
   }
 
+  private readonly handleVisibilityChange = (): void => {
+    if (!this.client) {
+      return;
+    }
+    const action = visibilityToSimulationAction(document.visibilityState);
+    if (action === "PAUSE") {
+      this.client.pause();
+      return;
+    }
+    this.client.resume();
+  };
+
   private emitStatus(payload: SimulationStatusPayload): void {
     const handler = this.game.registry.get("onSimulationStatus") as
       | ((payload: SimulationStatusPayload) => void)
@@ -132,6 +146,7 @@ export class SimulationScene extends Phaser.Scene {
   }
 
   private onShutdown(): void {
+    document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     this.scale.off("resize", this.handleResize, this);
     this.unsubscribe?.();
     this.unsubscribe = null;

@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RenderSnapshot } from "@/game/protocol";
-import {
-  SnapshotBuffer,
-  interpolateSnapshots,
-} from "@/game/phaser/snapshotBuffer";
+import { SnapshotBuffer, interpolateSnapshots } from "@/game/phaser/snapshotBuffer";
 
 function makeSnapshot(
   tick: number,

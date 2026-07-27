@@ -80,11 +80,7 @@ export function interpolateSnapshots(
     stagePhase: current.stagePhase,
     entities,
     instruments: {
-      cableLoad: lerp(
-        previous.instruments.cableLoad,
-        current.instruments.cableLoad,
-        t,
-      ),
+      cableLoad: lerp(previous.instruments.cableLoad, current.instruments.cableLoad, t),
       sway: lerp(previous.instruments.sway, current.instruments.sway, t),
     },
     weather: {
