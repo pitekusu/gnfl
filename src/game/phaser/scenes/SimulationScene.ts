@@ -34,9 +34,11 @@ export class SimulationScene extends Phaser.Scene {
   private statusText: Phaser.GameObjects.Text | null = null;
   private hintText: Phaser.GameObjects.Text | null = null;
   private controlsText: Phaser.GameObjects.Text | null = null;
+  private fineModeText: Phaser.GameObjects.Text | null = null;
   private unsubscribe: (() => void) | null = null;
   private snapshotCount = 0;
   private workerReady = false;
+  private fineModeActive = false;
 
   public constructor() {
     super(SimulationScene.KEY);
@@ -76,6 +78,16 @@ export class SimulationScene extends Phaser.Scene {
           color: "#7f93a3",
         },
       )
+      .setScrollFactor(0)
+      .setDepth(1000);
+
+    this.fineModeText = this.add
+      .text(12, 76, "", {
+        fontFamily: "Segoe UI, Noto Sans JP, sans-serif",
+        fontSize: "14px",
+        color: "#f0c040",
+        fontStyle: "bold",
+      })
       .setScrollFactor(0)
       .setDepth(1000);
 
@@ -129,6 +141,8 @@ export class SimulationScene extends Phaser.Scene {
       if (pausePressed) {
         this.client.togglePause();
       }
+      this.fineModeActive = input.fineMode;
+      this.fineModeText?.setText(this.fineModeActive ? "FINE MODE" : "");
       // Always send latched axes so the worker can coast to zero when keys release.
       this.client.sendInput(input);
     }
@@ -259,6 +273,8 @@ export class SimulationScene extends Phaser.Scene {
     this.cableGraphics = null;
     this.controlsText?.destroy();
     this.controlsText = null;
+    this.fineModeText?.destroy();
+    this.fineModeText = null;
     for (const view of this.entityViews.values()) {
       view.destroy();
     }

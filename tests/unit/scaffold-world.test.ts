@@ -72,6 +72,46 @@ describe("UnloadingScaffoldWorld", () => {
     world.free();
   });
 
+  it("moves trolley and hoist slower when fineMode is on", async () => {
+    const rapier = await initRapier();
+    const normalWorld = UnloadingScaffoldWorld.create(rapier, 18, 120, "fine-a");
+    const fineWorld = UnloadingScaffoldWorld.create(rapier, 18, 120, "fine-b");
+
+    normalWorld.setControlInput({
+      ...createNeutralPlayerInput(),
+      trolleyAxis: 1,
+      hoistAxis: 1,
+      fineMode: false,
+    });
+    fineWorld.setControlInput({
+      ...createNeutralPlayerInput(),
+      trolleyAxis: 1,
+      hoistAxis: 1,
+      fineMode: true,
+    });
+
+    const normalStartX = normalWorld.getTrolleyX();
+    const fineStartX = fineWorld.getTrolleyX();
+    const normalStartLen = normalWorld.getCableTargetLength();
+    const fineStartLen = fineWorld.getCableTargetLength();
+
+    for (let i = 0; i < 90; i += 1) {
+      normalWorld.step();
+      fineWorld.step();
+    }
+
+    const normalTrolleyDelta = normalWorld.getTrolleyX() - normalStartX;
+    const fineTrolleyDelta = fineWorld.getTrolleyX() - fineStartX;
+    const normalHoistDelta = normalStartLen - normalWorld.getCableTargetLength();
+    const fineHoistDelta = fineStartLen - fineWorld.getCableTargetLength();
+
+    expect(fineTrolleyDelta).toBeLessThan(normalTrolleyDelta * 0.5);
+    expect(fineHoistDelta).toBeLessThan(normalHoistDelta * 0.5);
+
+    normalWorld.free();
+    fineWorld.free();
+  });
+
   it("raises the spreader when hoist axis is positive", async () => {
     const rapier = await initRapier();
     const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "hoist-seed");

@@ -3,6 +3,8 @@
  * Pure helpers — Rapier only receives the resulting kinematic pose.
  */
 
+import { scaleSpeedForFineMode } from "@/game/unloading/fineMode";
+
 export function applyAxisDeadzone(axis: number, deadzone: number): number {
   const a = clamp(axis, -1, 1);
   if (Math.abs(a) <= deadzone) {
@@ -38,8 +40,11 @@ export function integrateTrolleyOnRail(
   params: TrolleyIntegrateParams,
 ): TrolleyIntegrateResult {
   const drive = applyAxisDeadzone(params.axis, params.axisDeadzone);
-  const speedScale = params.fineMode ? params.fineSpeedScale : 1;
-  const maxSpeed = params.maxSpeed * speedScale;
+  const maxSpeed = scaleSpeedForFineMode(
+    params.maxSpeed,
+    params.fineMode,
+    params.fineSpeedScale,
+  );
   const targetVelocity = drive * maxSpeed;
 
   let velocity = params.velocity;

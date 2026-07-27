@@ -60,7 +60,7 @@ function rebuildWorld(seed: string, nextConfig: SimulationConfig): void {
   stageWorld?.free();
   config = nextConfig;
   stageSeed = seed;
-  // Phase 2 C9: keyboard-driven PlayerInput applied each physics tick.
+  // Phase 2 C10: fine-mode scales trolley/hoist; keyboard drives PlayerInput.
   stageWorld = UnloadingScaffoldWorld.create(
     rapier,
     nextConfig.gravityY,

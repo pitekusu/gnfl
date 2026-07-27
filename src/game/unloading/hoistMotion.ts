@@ -1,5 +1,6 @@
-import { applyAxisDeadzone } from "@/game/unloading/trolleyMotion";
 import { clampCableTargetLength } from "@/game/unloading/cableForces";
+import { scaleSpeedForFineMode } from "@/game/unloading/fineMode";
+import { applyAxisDeadzone } from "@/game/unloading/trolleyMotion";
 
 export interface HoistIntegrateParams {
   /** Current commanded cable target length (game units). */
@@ -23,9 +24,13 @@ export interface HoistIntegrateParams {
  */
 export function integrateCableTargetLength(params: HoistIntegrateParams): number {
   const drive = applyAxisDeadzone(params.axis, params.axisDeadzone);
-  const speedScale = params.fineMode ? params.fineSpeedScale : 1;
+  const maxSpeed = scaleSpeedForFineMode(
+    params.maxSpeed,
+    params.fineMode,
+    params.fineSpeedScale,
+  );
   // Positive axis shortens the cable (lift).
-  const delta = -drive * params.maxSpeed * speedScale * params.dtSeconds;
+  const delta = -drive * maxSpeed * params.dtSeconds;
   return clampCableTargetLength(
     params.targetLength + delta,
     params.minCableLength,
