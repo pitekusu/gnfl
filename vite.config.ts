@@ -11,10 +11,14 @@ export default defineConfig({
     },
   },
   server: {
+    // Bind IPv4 loopback so Windows SSH LocalForward 5173->127.0.0.1:5173 works.
+    // Default Vite can end up on [::1] only, which refuses IPv4 connections.
+    host: "127.0.0.1",
     port: 5173,
     strictPort: true,
   },
   preview: {
+    host: "127.0.0.1",
     port: 4173,
     strictPort: true,
   },
