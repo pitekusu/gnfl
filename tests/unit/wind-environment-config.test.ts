@@ -15,11 +15,9 @@ describe("windEnvironmentConfig", () => {
     ).not.toThrow();
   });
 
-  it("keeps a strong always-on base force", () => {
-    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeGreaterThanOrEqual(100);
-    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.minForceFraction).toBeGreaterThanOrEqual(
-      0.5,
-    );
+  it("uses a moderate base force (not extreme)", () => {
+    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeGreaterThan(40);
+    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeLessThan(100);
   });
 
   it("rejects invalid baseDirectionX", () => {
@@ -40,14 +38,13 @@ describe("windEnvironmentConfig", () => {
     expect(() => assertWindEnvironmentConfigInvariants(bad)).toThrow(/baseForce/);
   });
 
-  it("accepts a calm always-on breeze", () => {
-    const calm = windEnvironmentConfigSchema.parse({
+  it("rejects all-zero band weights via invariant", () => {
+    const bad = windEnvironmentConfigSchema.parse({
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
-      baseForce: 30,
-      minForceFraction: 0.5,
-      maxForceAbs: 60,
-      directionBias: 0,
+      slowWeight: 0,
+      midWeight: 0,
+      fastWeight: 0,
     });
-    expect(() => assertWindEnvironmentConfigInvariants(calm)).not.toThrow();
+    expect(() => assertWindEnvironmentConfigInvariants(bad)).toThrow(/weights/);
   });
 });

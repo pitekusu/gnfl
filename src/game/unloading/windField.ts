@@ -1,4 +1,4 @@
-import { sampleSeededUnitNoise1D, seedUnit } from "@/game/unloading/seededNoise";
+import { sampleSeededNoise1D } from "@/game/unloading/seededNoise";
 import {
   DEFAULT_WIND_ENVIRONMENT_CONFIG,
   type WindEnvironmentConfig,
@@ -10,117 +10,86 @@ export interface WindSample {
   forceY: number;
   /** Signed strength hint for HUD in roughly [-1, 1] (forceX / maxForceAbs). */
   windHint: number;
-  /** Instantaneous direction −1 or +1 after bias. */
-  direction: number;
-  /** Magnitude modulator in [minForceFraction, 1]. */
-  magnitudeScale: number;
+  /** Shaped signed driver in [-1, 1] before force scale. */
+  signed: number;
 }
 
 /**
  * Continuous seeded wind at time t. Pure — same seed + t + config ⇒ same sample.
  *
- * - Direction: slow lattice of ±1 (spends clear time on each side, not stuck +X).
- * - Magnitude: always ≥ minForceFraction * baseForce, breathes with noise.
+ * Mixes slow/mid/fast noise so direction flips irregularly (not a single fixed side),
+ * keeps a moderate always-on magnitude, and clamps to maxForceAbs.
  */
 export function sampleWind(
   seed: string,
   elapsedSeconds: number,
   config: WindEnvironmentConfig = DEFAULT_WIND_ENVIRONMENT_CONFIG,
 ): WindSample {
-  const direction = sampleWindDirection(seed, elapsedSeconds, config);
-  const magnitudeScale = sampleMagnitudeScale(seed, elapsedSeconds, config);
+  const signed = sampleSignedDriver(seed, elapsedSeconds, config);
 
-  let forceX = config.baseForce * magnitudeScale * direction;
+  let forceX = config.baseForce * signed;
   forceX = clamp(forceX, -config.maxForceAbs, config.maxForceAbs);
 
   const forceY = Math.abs(forceX) * config.verticalCoupling;
   const windHint =
     config.maxForceAbs > 0 ? clamp(forceX / config.maxForceAbs, -1, 1) : 0;
 
-  return { forceX, forceY, windHint, direction, magnitudeScale };
+  return { forceX, forceY, windHint, signed };
 }
 
-/**
- * Piecewise-constant ±1 direction that holds for ~1/directionSpeed seconds,
- * then picks a new lattice sign (smoothstep blend only near the cell edge).
- */
-export function sampleWindDirection(
+/** Exposed for tests: multi-band signed driver after bias + shaping. */
+export function sampleSignedDriver(
   seed: string,
   elapsedSeconds: number,
   config: WindEnvironmentConfig = DEFAULT_WIND_ENVIRONMENT_CONFIG,
 ): number {
-  const t = elapsedSeconds * config.directionSpeed;
-  const i0 = Math.floor(t);
-  const i1 = i0 + 1;
-  const f = t - i0;
-
-  let d0 = latticeDirection(seed, config.directionLane, i0);
-  let d1 = latticeDirection(seed, config.directionLane, i1);
-
-  // Soft bias: flip a fraction of cells toward baseDirectionX without killing reversals.
-  if (config.directionBias > 0) {
-    d0 = applyDirectionBias(d0, config.baseDirectionX, config.directionBias, seed, i0);
-    d1 = applyDirectionBias(d1, config.baseDirectionX, config.directionBias, seed, i1);
-  }
-
-  // Hold most of the cell, blend only in the last 15% so flips are visible but not harsh.
-  if (f < 0.85) {
-    return d0;
-  }
-  const u = (f - 0.85) / 0.15;
-  const s = u * u * (3 - 2 * u);
-  const blended = d0 + (d1 - d0) * s;
-  // Avoid long zero: snap to nearest sign if almost zero.
-  if (Math.abs(blended) < 0.2) {
-    return d1;
-  }
-  return blended < 0 ? -1 : 1;
-}
-
-function sampleMagnitudeScale(
-  seed: string,
-  elapsedSeconds: number,
-  config: WindEnvironmentConfig,
-): number {
-  const minF = config.minForceFraction;
-  if (config.magnitudeSpeed <= 0) {
-    return (minF + 1) * 0.5;
-  }
-  let unit = sampleSeededUnitNoise1D(
+  const wSum = config.slowWeight + config.midWeight + config.fastWeight;
+  const slow = sampleSeededNoise1D(
     seed,
-    config.magnitudeLane,
-    elapsedSeconds * config.magnitudeSpeed,
+    config.slowLane,
+    elapsedSeconds * config.slowSpeed,
   );
-  if (config.jitterMix > 0 && config.jitterSpeed > 0) {
-    const jitter = sampleSeededUnitNoise1D(
-      seed,
-      config.jitterLane,
-      elapsedSeconds * config.jitterSpeed,
-    );
-    unit = unit * (1 - config.jitterMix) + jitter * config.jitterMix;
+  const mid = sampleSeededNoise1D(
+    seed,
+    config.midLane,
+    elapsedSeconds * config.midSpeed,
+  );
+  const fast = sampleSeededNoise1D(
+    seed,
+    config.fastLane,
+    elapsedSeconds * config.fastSpeed,
+  );
+
+  let mixed =
+    (slow * config.slowWeight + mid * config.midWeight + fast * config.fastWeight) /
+    wSum;
+  mixed = clamp(mixed, -1, 1);
+
+  // Soft lean without locking to one side.
+  if (config.directionBias > 0) {
+    mixed =
+      mixed * (1 - config.directionBias) + config.baseDirectionX * config.directionBias;
+    mixed = clamp(mixed, -1, 1);
   }
-  unit = clamp(unit, 0, 1);
-  return minF + (1 - minF) * unit;
+
+  return shapeSigned(mixed, config.responseExponent, config.minSignedAbs);
 }
 
-function latticeDirection(seed: string, lane: number, cell: number): number {
-  // Map hash to a clear ±1 (threshold at 0.5 of unit).
-  return seedUnit(`${seed}|dir|${lane}`, cell) < 0.5 ? -1 : 1;
-}
-
-function applyDirectionBias(
-  dir: number,
-  base: number,
-  bias: number,
-  seed: string,
-  cell: number,
-): number {
-  if (dir === base) {
-    return dir;
+/**
+ * Stretch |n| away from 0, then enforce a minimum |signed| so the load
+ * keeps moving while still reversing when the raw noise crosses zero.
+ */
+function shapeSigned(n: number, exponent: number, minAbs: number): number {
+  const sign = n < 0 ? -1 : n > 0 ? 1 : 0;
+  if (sign === 0) {
+    // Exact zero: push slightly toward +1 then minAbs will apply via caller bias;
+    // return a tiny value that minAbs will lift — pick +minAbs for determinism.
+    return minAbs > 0 ? minAbs : 0;
   }
-  // With probability ≈ bias, force the base direction for this cell.
-  const roll = seedUnit(`${seed}|bias|${cell}`, cell + 17);
-  return roll < bias ? base : dir;
+  let mag = Math.pow(Math.abs(n), exponent);
+  mag = Math.max(mag, minAbs);
+  mag = Math.min(mag, 1);
+  return sign * mag;
 }
 
 function clamp(value: number, min: number, max: number): number {

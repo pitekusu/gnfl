@@ -56,15 +56,16 @@ describe("UnloadingScaffoldWorld", () => {
     const rapier = await initRapier();
     const calmWind = {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
-      baseForce: 0,
-      variation: 0,
-      jitterMix: 0,
+      baseForce: 0.01,
+      minSignedAbs: 0,
+      directionBias: 1,
+      maxForceAbs: 1,
     };
     const strongWind = {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
-      baseForce: 90,
-      variation: 0.2,
-      maxForceAbs: 150,
+      baseForce: 100,
+      minSignedAbs: 0.5,
+      maxForceAbs: 160,
     };
     const calm = UnloadingScaffoldWorld.create(
       rapier,
@@ -317,9 +318,10 @@ describe("UnloadingScaffoldWorld", () => {
     // Stage-path test: calm wind so trolley progress is predictable.
     const noWind = {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
-      baseForce: 0,
-      variation: 0,
-      jitterMix: 0,
+      baseForce: 0.01,
+      minSignedAbs: 0,
+      directionBias: 1,
+      maxForceAbs: 1,
     };
     const world = UnloadingScaffoldWorld.create(
       rapier,
@@ -395,10 +397,9 @@ describe("UnloadingScaffoldWorld", () => {
     const noWind = {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
       baseForce: 0.01,
-      minForceFraction: 1,
+      minSignedAbs: 0,
       directionBias: 1,
       maxForceAbs: 1,
-      jitterMix: 0,
     };
     const world = UnloadingScaffoldWorld.create(
       rapier,
@@ -658,9 +659,10 @@ describe("UnloadingScaffoldWorld", () => {
     // Isolate cable hang from continuous wind (and keep default waves).
     const noWind = {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
-      baseForce: 0,
-      variation: 0,
-      jitterMix: 0,
+      baseForce: 0.01,
+      minSignedAbs: 0,
+      directionBias: 1,
+      maxForceAbs: 1,
     };
     const world = UnloadingScaffoldWorld.create(
       rapier,
