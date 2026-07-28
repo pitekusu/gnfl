@@ -19,12 +19,18 @@ describe("static berth art layout", () => {
     expect(b.height).toBeGreaterThan(0);
   });
 
-  it("spans the trolley rail for the gantry", () => {
+  it("spans the trolley rail but stays a short band under the rail", () => {
     const g = computeGantryLayout(DEFAULT_UNLOADING_LAYOUT);
     const railSpan =
       DEFAULT_UNLOADING_LAYOUT.crane.railMaxX - DEFAULT_UNLOADING_LAYOUT.crane.railMinX;
+    const railY = DEFAULT_UNLOADING_LAYOUT.crane.railY;
+    const deckTop =
+      DEFAULT_UNLOADING_LAYOUT.quay.centerY - DEFAULT_UNLOADING_LAYOUT.quay.halfHeight;
+    const fullDropPx = worldSizeToDisplay(deckTop - railY);
     expect(g.width).toBeCloseTo(worldSizeToDisplay(railSpan));
     expect(g.height).toBeGreaterThan(0);
+    // Must not fill the entire air gap (that painted over the cradle).
+    expect(g.height).toBeLessThan(fullDropPx * 0.5);
     expect(g.centerX).toBeCloseTo(
       worldToDisplayX(
         (DEFAULT_UNLOADING_LAYOUT.crane.railMinX +
