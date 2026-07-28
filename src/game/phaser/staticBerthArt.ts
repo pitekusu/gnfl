@@ -48,7 +48,10 @@ export interface GantryLayout {
   height: number;
 }
 
-/** Static gantry spanning the trolley rail above the quay deck. */
+/**
+ * Static gantry art under the trolley rail only.
+ * Must NOT stretch to the quay deck — that would cover ship/cradle as a wall.
+ */
 export function computeGantryLayout(
   layout: UnloadingLayout = DEFAULT_UNLOADING_LAYOUT,
 ): GantryLayout {
@@ -57,13 +60,14 @@ export function computeGantryLayout(
   const minX = layout.crane.railMinX;
   const maxX = layout.crane.railMaxX;
   const width = maxX - minX;
-  // In Y-down, deck is below the rail → positive height.
-  const height = Math.max(0.5, deckTop - railY);
+  // Keep a short band just below the rail (not full air gap to the deck).
+  const maxDrop = deckTop - railY;
+  const height = Math.min(2.2, Math.max(1.0, maxDrop * 0.28));
   return {
     centerX: worldToDisplayX((minX + maxX) / 2),
     centerY: worldToDisplayY(railY + height / 2),
     width: worldSizeToDisplay(width),
-    height: worldSizeToDisplay(height * 1.05),
+    height: worldSizeToDisplay(height),
   };
 }
 
