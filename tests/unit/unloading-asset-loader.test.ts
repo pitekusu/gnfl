@@ -3,9 +3,14 @@ import type { Loader, Textures } from "phaser";
 import {
   UNLOADING_SVG_RASTER_SIZE,
   hasUsableTexture,
+  queueAllUnloadingArtLoads,
   queueUnloadingSvgLoads,
 } from "@/game/phaser/unloadingAssetLoader";
-import { listUnloadingSvgLoadEntries } from "@/game/phaser/unloadingAssetPaths";
+import {
+  UNLOADING_TEXTURE_KEYS,
+  listUnloadingSvgLoadEntries,
+  unloadingBackgroundUrl,
+} from "@/game/phaser/unloadingAssetPaths";
 
 describe("queueUnloadingSvgLoads", () => {
   it("queues every manifest entry via load.svg", () => {
@@ -18,6 +23,17 @@ describe("queueUnloadingSvgLoads", () => {
       width: UNLOADING_SVG_RASTER_SIZE,
       height: UNLOADING_SVG_RASTER_SIZE,
     });
+  });
+
+  it("also queues optional berth backdrop image", () => {
+    const svg = vi.fn();
+    const image = vi.fn();
+    const load = { svg, image } as unknown as Loader.LoaderPlugin;
+    queueAllUnloadingArtLoads(load);
+    expect(image).toHaveBeenCalledWith(
+      UNLOADING_TEXTURE_KEYS.berthBackdrop,
+      unloadingBackgroundUrl("berthBackdrop"),
+    );
   });
 });
 

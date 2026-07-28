@@ -15,6 +15,22 @@ export function drawStaticUnloadingScenery(g: Phaser.GameObjects.Graphics): void
   const layout = DEFAULT_UNLOADING_LAYOUT;
   g.clear();
 
+  // Soft sky band (behind everything). Full-bleed WebP replaces this when loaded.
+  g.fillStyle(0x0a1520, 1);
+  g.fillRect(
+    worldToDisplayX(-24),
+    worldToDisplayY(0),
+    worldSizeToDisplay(48),
+    worldSizeToDisplay(4.5),
+  );
+  g.fillStyle(0x152838, 0.9);
+  g.fillRect(
+    worldToDisplayX(-24),
+    worldToDisplayY(3.5),
+    worldSizeToDisplay(48),
+    worldSizeToDisplay(2.2),
+  );
+
   // Deep water band under the quay / berth.
   const waterTop = worldToDisplayY(layout.quay.centerY + layout.quay.halfHeight);
   const waterBottom = worldToDisplayY(layout.quay.centerY + 6);
@@ -35,7 +51,7 @@ export function drawStaticUnloadingScenery(g: Phaser.GameObjects.Graphics): void
     worldSizeToDisplay(0.7),
   );
 
-  // Crane rail (full trolley travel).
+  // Crane rail (full trolley travel) — kept until rail is part of gantry art.
   const railY = worldToDisplayY(layout.crane.railY);
   g.lineStyle(4, 0x8a9bab, 1);
   g.beginPath();
@@ -43,8 +59,8 @@ export function drawStaticUnloadingScenery(g: Phaser.GameObjects.Graphics): void
   g.lineTo(worldToDisplayX(layout.crane.railMaxX), railY);
   g.strokePath();
 
-  // Simple gantry uprights at rail ends.
-  g.lineStyle(5, 0x6a7d8c, 1);
+  // Fallback gantry uprights (hidden visually when crane_gantry.svg mounts on top).
+  g.lineStyle(5, 0x6a7d8c, 0.55);
   for (const x of [layout.crane.railMinX + 0.5, layout.crane.railMaxX - 0.5]) {
     const dx = worldToDisplayX(x);
     g.beginPath();

@@ -1,5 +1,9 @@
 import type Phaser from "phaser";
-import { listUnloadingSvgLoadEntries } from "@/game/phaser/unloadingAssetPaths";
+import {
+  UNLOADING_TEXTURE_KEYS,
+  listUnloadingSvgLoadEntries,
+  unloadingBackgroundUrl,
+} from "@/game/phaser/unloadingAssetPaths";
 
 /** Default SVG raster size for Phaser (display scale is set per entity). */
 export const UNLOADING_SVG_RASTER_SIZE = 256;
@@ -15,6 +19,22 @@ export function queueUnloadingSvgLoads(load: Phaser.Loader.LoaderPlugin): void {
       height: UNLOADING_SVG_RASTER_SIZE,
     });
   }
+}
+
+/**
+ * Optional full-bleed berth plate (WebP/PNG). 404 is OK — greybox water/sky remain.
+ */
+export function queueUnloadingBackgroundLoads(load: Phaser.Loader.LoaderPlugin): void {
+  load.image(
+    UNLOADING_TEXTURE_KEYS.berthBackdrop,
+    unloadingBackgroundUrl("berthBackdrop"),
+  );
+}
+
+/** Queue all unloading display assets for Scene.preload(). */
+export function queueAllUnloadingArtLoads(load: Phaser.Loader.LoaderPlugin): void {
+  queueUnloadingSvgLoads(load);
+  queueUnloadingBackgroundLoads(load);
 }
 
 /** True when the texture manager has a successful non-missing texture for the key. */

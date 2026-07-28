@@ -10,9 +10,10 @@ import {
   resolveOverlayDepth,
 } from "@/game/phaser/entityDisplayRegistry";
 import { SnapshotBuffer } from "@/game/phaser/snapshotBuffer";
+import { mountStaticBerthArt } from "@/game/phaser/staticBerthArt";
 import {
   hasUsableTexture,
-  queueUnloadingSvgLoads,
+  queueAllUnloadingArtLoads,
 } from "@/game/phaser/unloadingAssetLoader";
 import { visibilityToSimulationAction } from "@/game/phaser/visibilityControl";
 import {
@@ -68,6 +69,8 @@ export class SimulationScene extends Phaser.Scene {
   private sceneryGraphics: Phaser.GameObjects.Graphics | null = null;
   private overlayGraphics: Phaser.GameObjects.Graphics | null = null;
   private cableGraphics: Phaser.GameObjects.Graphics | null = null;
+  private berthBackdrop: Phaser.GameObjects.Image | null = null;
+  private staticGantry: Phaser.GameObjects.Image | null = null;
   private statusText: Phaser.GameObjects.Text | null = null;
   private hintText: Phaser.GameObjects.Text | null = null;
   private controlsText: Phaser.GameObjects.Text | null = null;
@@ -89,12 +92,17 @@ export class SimulationScene extends Phaser.Scene {
     this.load.on("loaderror", (file: { key?: string; src?: string }) => {
       console.warn("[unloading art] failed to load", file.key ?? file.src ?? file);
     });
-    queueUnloadingSvgLoads(this.load);
+    queueAllUnloadingArtLoads(this.load);
   }
 
   public create(): void {
     this.cameras.main.setBackgroundColor(0x071018);
     this.fitCamera();
+    // Backdrop plate (optional WebP) + gantry SVG when present.
+    const staticArt = mountStaticBerthArt(this);
+    this.berthBackdrop = staticArt.backdrop;
+    this.staticGantry = staticArt.gantry;
+    // Water band, rail, bumper stay as graphics until art fully replaces them.
     this.sceneryGraphics = this.add.graphics().setDepth(1);
     this.overlayGraphics = this.add.graphics().setDepth(9);
     this.cableGraphics = this.add.graphics().setDepth(20);
@@ -464,6 +472,10 @@ export class SimulationScene extends Phaser.Scene {
     this.client = null;
     this.workerReady = false;
     this.snapshotBuffer.clear();
+    this.berthBackdrop?.destroy();
+    this.berthBackdrop = null;
+    this.staticGantry?.destroy();
+    this.staticGantry = null;
     this.sceneryGraphics?.destroy();
     this.sceneryGraphics = null;
     this.overlayGraphics?.destroy();
