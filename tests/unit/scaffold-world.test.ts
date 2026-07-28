@@ -33,6 +33,21 @@ describe("UnloadingScaffoldWorld", () => {
     world.free();
   });
 
+  it("writes continuous wave envelope and waveHint into snapshots", async () => {
+    const rapier = await initRapier();
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "wave-wire-seed");
+    let maxAbsHint = 0;
+    for (let i = 0; i < 600; i += 1) {
+      world.step();
+      const snap = world.buildSnapshot(i + 1, 0);
+      maxAbsHint = Math.max(maxAbsHint, Math.abs(snap.weather.waveHint));
+      expect(world.getWaveEnvelope()).toBeGreaterThan(0);
+    }
+    // Continuous waves should produce a non-trivial heave hint over a few seconds.
+    expect(maxAbsHint).toBeGreaterThan(0.2);
+    world.free();
+  });
+
   it("reflects dispatched stage machine events in snapshots", async () => {
     const rapier = await initRapier();
     const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "phase-seed");
