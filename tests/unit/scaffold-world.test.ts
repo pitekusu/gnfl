@@ -87,6 +87,11 @@ describe("UnloadingScaffoldWorld", () => {
     expect(abortResult.completed).toBe(false);
     expect(abortResult.scoring).toBeNull();
     expect(abortResult.abortReason).toBe("E_STOP");
+    const snap = world.buildSnapshot(1, 0);
+    expect(snap.stagePhase).toBe("SAFE_ABORTED");
+    expect(snap.terminalResult).not.toBeNull();
+    expect(snap.terminalResult?.aborted).toBe(true);
+    expect(snap.terminalResult?.abortReason).toBe("E_STOP");
     for (let i = 0; i < 30; i += 1) {
       world.step();
     }

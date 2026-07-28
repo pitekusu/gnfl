@@ -309,27 +309,27 @@ button {
 .stage-end-banner {
   position: absolute;
   left: 50%;
-  bottom: 2.75rem;
-  z-index: 6;
+  top: 4.5rem;
+  z-index: 20;
   transform: translateX(-50%);
-  max-width: min(36rem, calc(100% - 1.5rem));
-  padding: 0.65rem 1.15rem;
+  max-width: min(40rem, calc(100% - 1.5rem));
+  padding: 0.85rem 1.35rem;
   border-radius: 0.55rem;
-  font-size: 1.05rem;
+  font-size: 1.2rem;
   font-weight: 700;
   text-align: center;
   pointer-events: none;
-  box-shadow: 0 4px 18px color-mix(in srgb, #000 45%, transparent);
+  box-shadow: 0 6px 24px color-mix(in srgb, #000 55%, transparent);
 }
 
 .stage-end-banner-complete {
-  border: 1px solid #5ec8ff;
-  background: color-mix(in srgb, #061820 88%, #5ec8ff 12%);
-  color: #b8e8ff;
+  border: 2px solid #5ec8ff;
+  background: color-mix(in srgb, #061820 90%, #5ec8ff 18%);
+  color: #e8f7ff;
 }
 
 .stage-end-banner-abort {
-  border: 1px solid #e07050;
-  background: color-mix(in srgb, #1a0c08 88%, #e07050 12%);
-  color: #ffc4b0;
+  border: 2px solid #ff8a6a;
+  background: color-mix(in srgb, #1a0c08 90%, #e07050 18%);
+  color: #ffe0d4;
 }

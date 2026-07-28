@@ -1079,11 +1079,15 @@ export class UnloadingScaffoldWorld {
     const cask = this.caskBody.translation();
     const instruments = this.sampleInstrumentMagnitudes();
 
+    const terminal =
+      this.stage.phase === "COMPLETED" || this.stage.phase === "SAFE_ABORTED";
+
     return {
       tick,
       generatedAtMs,
       stagePhase: this.stage.phase,
       abortReason: this.stage.abortReason,
+      terminalResult: terminal ? this.buildStageResult() : null,
       entities: [
         {
           id: UnloadingScaffoldWorld.SHIP_ID,

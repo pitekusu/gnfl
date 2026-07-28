@@ -65,6 +65,8 @@ export class SimulationScene extends Phaser.Scene {
   private workerReady = false;
   private fineModeActive = false;
   private lastHudEmitMs = 0;
+  /** Deduplicate stageEnd emits (worker message + snapshot path). */
+  private stageEndEmitted = false;
 
   public constructor() {
     super(SimulationScene.KEY);
@@ -140,6 +142,10 @@ export class SimulationScene extends Phaser.Scene {
           // Stamp with main-thread time so interpolation does not depend on worker clocks.
           this.snapshotBuffer.push(message.snapshot, performance.now());
           {
+            // Backup path: terminalResult on snapshot if dedicated COMPLETED/SAFE_ABORT was missed.
+            if (message.snapshot.terminalResult) {
+              this.emitStageEnd(message.snapshot.terminalResult);
+            }
             const now = performance.now();
             // React HUD ~10 Hz — readable, not per-frame React churn.
             if (now - this.lastHudEmitMs >= 100) {
@@ -164,14 +170,10 @@ export class SimulationScene extends Phaser.Scene {
           }
           break;
         case "COMPLETED":
-          this.hintText?.setText("工程完了 — 結果は画面オーバーレイ");
-          this.emitStatus({ kind: "stageEnd", result: message.result });
+          this.emitStageEnd(message.result);
           break;
         case "SAFE_ABORT":
-          this.hintText?.setText(
-            `安全中止${message.result.abortReason ? ` (${message.result.abortReason})` : ""} — スコア登録不可`,
-          );
-          this.emitStatus({ kind: "stageEnd", result: message.result });
+          this.emitStageEnd(message.result);
           break;
         case "ERROR":
           this.statusText?.setText(`worker error: ${message.code}`);
@@ -215,6 +217,10 @@ export class SimulationScene extends Phaser.Scene {
     }
     this.applySnapshot(sample.snapshot);
 
+    if (sample.snapshot.terminalResult) {
+      this.emitStageEnd(sample.snapshot.terminalResult);
+    }
+
     // Backup HUD path from the displayed snapshot (in case SNAPSHOT-handler emit is skipped).
     const now = performance.now();
     if (now - this.lastHudEmitMs >= 100) {
@@ -231,6 +237,21 @@ export class SimulationScene extends Phaser.Scene {
         waveHint: sample.snapshot.weather?.waveHint ?? 0,
       });
     }
+  }
+
+  private emitStageEnd(result: StageResult): void {
+    if (this.stageEndEmitted) {
+      return;
+    }
+    this.stageEndEmitted = true;
+    if (result.aborted) {
+      this.hintText?.setText(
+        `安全中止${result.abortReason ? ` (${result.abortReason})` : ""} — スコア登録不可`,
+      );
+    } else {
+      this.hintText?.setText("工程完了 — 結果は画面オーバーレイ");
+    }
+    this.emitStatus({ kind: "stageEnd", result });
   }
 
   private applySnapshot(snapshot: RenderSnapshot): void {

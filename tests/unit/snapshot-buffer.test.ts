@@ -13,6 +13,7 @@ function makeSnapshot(
     generatedAtMs,
     stagePhase: "READY",
     abortReason: null,
+    terminalResult: null,
     entities: [
       {
         id: "demo-box",

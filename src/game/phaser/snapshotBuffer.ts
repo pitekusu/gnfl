@@ -110,6 +110,8 @@ export function interpolateSnapshots(
     generatedAtMs: lerp(previous.generatedAtMs, current.generatedAtMs, t),
     stagePhase: current.stagePhase,
     abortReason: current.abortReason,
+    // Terminal result is discrete — never lerp (prefer current when present).
+    terminalResult: current.terminalResult ?? previous.terminalResult ?? null,
     entities,
     cables,
     instruments: {

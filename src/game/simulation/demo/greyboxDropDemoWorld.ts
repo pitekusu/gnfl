@@ -85,6 +85,7 @@ export class GreyboxDemoWorld {
       generatedAtMs,
       stagePhase: "READY",
       abortReason: null,
+      terminalResult: null,
       entities: [
         {
           id: GreyboxDemoWorld.FLOOR_ID,

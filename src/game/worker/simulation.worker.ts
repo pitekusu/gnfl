@@ -80,16 +80,25 @@ function rebuildWorld(seed: string, nextConfig: SimulationConfig): void {
   });
 }
 
+function cloneStageResultForPost(
+  world: UnloadingScaffoldWorld,
+): ReturnType<UnloadingScaffoldWorld["buildStageResult"]> {
+  // Force a structured-clone-safe plain object (no prototype / non-enumerable traps).
+  return JSON.parse(JSON.stringify(world.buildStageResult())) as ReturnType<
+    UnloadingScaffoldWorld["buildStageResult"]
+  >;
+}
+
 function maybePostTerminalResult(world: UnloadingScaffoldWorld): void {
   const phase = world.getStagePhase();
   if (phase === "COMPLETED" && lastTerminalPosted !== "COMPLETED") {
     lastTerminalPosted = "COMPLETED";
-    post({ type: "COMPLETED", result: world.buildStageResult() });
+    post({ type: "COMPLETED", result: cloneStageResultForPost(world) });
     return;
   }
   if (phase === "SAFE_ABORTED" && lastTerminalPosted !== "SAFE_ABORTED") {
     lastTerminalPosted = "SAFE_ABORTED";
-    post({ type: "SAFE_ABORT", result: world.buildStageResult() });
+    post({ type: "SAFE_ABORT", result: cloneStageResultForPost(world) });
   }
 }
 
