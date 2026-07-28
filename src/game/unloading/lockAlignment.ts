@@ -32,13 +32,20 @@ export interface LockAlignmentResult {
 /**
  * Evaluate whether the spreader is aligned enough to lock onto the cask.
  * Pure — no Rapier. Y grows downward.
+ *
+ * Vertical check uses face gap (cask top − spreader bottom): near-zero when
+ * seated, positive when floating above, negative when overlapping.
  */
 export function evaluateLockAlignment(input: LockAlignmentInput): LockAlignmentResult {
   const { spreader, cask, config } = input;
   const horizontalError = Math.abs(spreader.x - cask.x);
-  // Ideal: spreader bottom face just above cask top face.
+  // Ideal: spreader bottom face just above / on cask top face.
   const idealSpreaderY = cask.y - input.caskHalfHeight - input.spreaderHalfHeight;
   const verticalError = Math.abs(spreader.y - idealSpreaderY);
+  // Face gap in Y-down: >0 = air gap (spreader above), <0 = penetration.
+  const spreaderBottomY = spreader.y + input.spreaderHalfHeight;
+  const caskTopY = cask.y - input.caskHalfHeight;
+  const faceGap = caskTopY - spreaderBottomY;
   const angleErrorRad = Math.abs(normalizeAngle(spreader.angleRad - cask.angleRad));
   const dvx = spreader.vx - cask.vx;
   const dvy = spreader.vy - cask.vy;
@@ -49,7 +56,8 @@ export function evaluateLockAlignment(input: LockAlignmentInput): LockAlignmentR
   if (horizontalError > config.maxHorizontalError) {
     reasons.push("horizontal");
   }
-  if (verticalError > config.maxVerticalError) {
+  // Reject visible float-above; allow only a tiny seating band around contact.
+  if (faceGap > config.maxVerticalError || faceGap < -config.maxVerticalError * 1.5) {
     reasons.push("vertical");
   }
   if (angleErrorRad > config.maxAngleErrorRad) {

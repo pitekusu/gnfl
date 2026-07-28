@@ -25,10 +25,16 @@ export const lockConfigSchema = z.object({
 export type LockConfig = z.infer<typeof lockConfigSchema>;
 
 export const DEFAULT_LOCK_CONFIG: LockConfig = lockConfigSchema.parse({
-  maxHorizontalError: 0.55,
-  maxVerticalError: 0.65,
-  maxAngleErrorRad: 0.18,
-  maxRelativeSpeed: 1.2,
-  maxCenterDistance: 2.4,
-  stableAlignTicks: 8,
+  /** Tight enough that a visible air gap above the cask rejects lock. */
+  maxHorizontalError: 0.35,
+  /**
+   * Face-gap budget (game units). Spreader half-height is ~0.3 — keep this
+   * well below so "not touching" cannot read as lockReady.
+   */
+  maxVerticalError: 0.12,
+  maxAngleErrorRad: 0.14,
+  maxRelativeSpeed: 0.9,
+  /** ~ spreaderHalf + caskHalf + small margin when faces nearly touch. */
+  maxCenterDistance: 1.65,
+  stableAlignTicks: 10,
 });

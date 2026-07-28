@@ -65,4 +65,44 @@ describe("evaluateLockAlignment", () => {
     expect(result.ok).toBe(false);
     expect(result.reasons).toContain("speed");
   });
+
+  it("rejects a visible air gap above the cask", () => {
+    const caskY = 6;
+    const idealSpreaderY = caskY - halfC - halfS;
+    // Hover well above contact (0.4 units of air — wider than maxVerticalError).
+    const result = evaluateLockAlignment({
+      spreader: {
+        x: 0,
+        y: idealSpreaderY - 0.4,
+        angleRad: 0,
+        vx: 0,
+        vy: 0,
+      },
+      cask: { x: 0, y: caskY, angleRad: 0, vx: 0, vy: 0 },
+      spreaderHalfHeight: halfS,
+      caskHalfHeight: halfC,
+      config: DEFAULT_LOCK_CONFIG,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.reasons).toContain("vertical");
+  });
+
+  it("still accepts a tiny seating band around contact", () => {
+    const caskY = 6;
+    const idealSpreaderY = caskY - halfC - halfS;
+    const result = evaluateLockAlignment({
+      spreader: {
+        x: 0,
+        y: idealSpreaderY - DEFAULT_LOCK_CONFIG.maxVerticalError * 0.5,
+        angleRad: 0,
+        vx: 0,
+        vy: 0,
+      },
+      cask: { x: 0, y: caskY, angleRad: 0, vx: 0, vy: 0 },
+      spreaderHalfHeight: halfS,
+      caskHalfHeight: halfC,
+      config: DEFAULT_LOCK_CONFIG,
+    });
+    expect(result.ok).toBe(true);
+  });
 });

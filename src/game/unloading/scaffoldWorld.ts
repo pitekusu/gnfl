@@ -501,17 +501,12 @@ export class UnloadingScaffoldWorld {
   }
 
   private createLockJoint(): void {
-    const spreaderT = this.spreaderBody.translation();
-    const caskT = this.caskBody.translation();
-    const spreaderBottomY = spreaderT.y + this.layout.crane.spreaderHalfHeight;
-    const caskTopY = caskT.y - this.layout.cask.halfHeight;
-    const lockWorld: Vec2 = {
-      x: (spreaderT.x + caskT.x) * 0.5,
-      y: (spreaderBottomY + caskTopY) * 0.5,
-    };
+    // Close residual face gap so the joint does not freeze an air pocket.
+    this.snapSpreaderToCaskLockPose();
 
-    const anchor1 = worldPointToLocal(this.spreaderBody, lockWorld.x, lockWorld.y);
-    const anchor2 = worldPointToLocal(this.caskBody, lockWorld.x, lockWorld.y);
+    // Face anchors: spreader bottom center ↔ cask top center (body-local).
+    const anchor1: Vec2 = { x: 0, y: this.layout.crane.spreaderHalfHeight };
+    const anchor2: Vec2 = { x: 0, y: -this.layout.cask.halfHeight };
     const rot1 = this.spreaderBody.rotation();
     const rot2 = this.caskBody.rotation();
     // Freeze current relative orientation: world frames coincide at creation.
@@ -701,24 +696,6 @@ function worldPointOnBody(
   return {
     x: t.x + localX * cos - localY * sin,
     y: t.y + localX * sin + localY * cos,
-  };
-}
-
-/** Inverse of worldPointOnBody — world → body-local. */
-function worldPointToLocal(
-  body: RAPIER.RigidBody,
-  worldX: number,
-  worldY: number,
-): Vec2 {
-  const t = body.translation();
-  const angle = body.rotation();
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  const dx = worldX - t.x;
-  const dy = worldY - t.y;
-  return {
-    x: dx * cos + dy * sin,
-    y: -dx * sin + dy * cos,
   };
 }
 
