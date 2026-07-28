@@ -31,8 +31,17 @@ describe("interlockConfig", () => {
     expect(() => interlockConfigSchema.parse(DEFAULT_INTERLOCK_CONFIG)).not.toThrow();
   });
 
-  it("allows fully blocked unlocked hoist (scale 0)", () => {
-    expect(DEFAULT_INTERLOCK_CONFIG.unlockedHoistUpSpeedScale).toBe(0);
+  it("defaults unlocked hoist-up to full speed (cable recovery)", () => {
+    expect(DEFAULT_INTERLOCK_CONFIG.unlockedHoistUpSpeedScale).toBe(1);
+  });
+
+  it("allows fully blocked unlocked hoist via scale 0", () => {
+    expect(() =>
+      interlockConfigSchema.parse({
+        ...DEFAULT_INTERLOCK_CONFIG,
+        unlockedHoistUpSpeedScale: 0,
+      }),
+    ).not.toThrow();
   });
 
   it("rejects trolley speed scale above 1", () => {

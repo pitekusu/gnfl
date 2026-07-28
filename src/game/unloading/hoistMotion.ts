@@ -39,8 +39,10 @@ export function integrateCableTargetLength(params: HoistIntegrateParams): number
 }
 
 /**
- * Ground-break interlock: scale hoist-up (positive axis) when the load is not locked.
- * Lowering (negative axis) is always allowed so the spreader can be seated onto the cask.
+ * Optional unlocked hoist-up scale (hard mode can set scale to 0).
+ * Default config uses 1 so players can reel cable back after over-paying out.
+ * Lowering (negative axis) is always unscaled. Locked always uses full axis.
+ * Lifting the cask still requires the lock joint — this only affects cable command.
  */
 export function applyUnlockedHoistUpInterlock(
   axis: number,

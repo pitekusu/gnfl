@@ -106,30 +106,32 @@ describe("UnloadingScaffoldWorld", () => {
     world.free();
   });
 
-  it("blocks hoist-up before lock (ground-break interlock)", async () => {
+  it("allows hoist-up before lock so over-paid cable can be reeled in", async () => {
     const rapier = await initRapier();
     const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "interlock-seed");
     for (let i = 0; i < 60; i += 1) {
       world.step();
     }
-    const lengthBefore = world.getCableTargetLength();
-    world.setControlInput({
-      ...createNeutralPlayerInput(),
-      hoistAxis: 1,
-    });
-    for (let i = 0; i < 120; i += 1) {
-      world.step();
-    }
-    expect(world.getCableTargetLength()).toBeCloseTo(lengthBefore, 5);
-    // Lowering remains available for seating onto the cask.
+    // Pay out cable first.
     world.setControlInput({
       ...createNeutralPlayerInput(),
       hoistAxis: -1,
     });
-    for (let i = 0; i < 60; i += 1) {
+    for (let i = 0; i < 90; i += 1) {
       world.step();
     }
-    expect(world.getCableTargetLength()).toBeGreaterThan(lengthBefore + 0.2);
+    const lengthLong = world.getCableTargetLength();
+    // Reel back without lock.
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      hoistAxis: 1,
+    });
+    for (let i = 0; i < 90; i += 1) {
+      world.step();
+    }
+    expect(world.getCableTargetLength()).toBeLessThan(lengthLong - 0.3);
+    // Unlocked: cask is not rigidly lifted with the empty spreader path.
+    expect(world.isLockJointActive()).toBe(false);
     world.free();
   });
 
@@ -243,17 +245,16 @@ describe("UnloadingScaffoldWorld", () => {
     const normalWorld = UnloadingScaffoldWorld.create(rapier, 18, 120, "fine-a");
     const fineWorld = UnloadingScaffoldWorld.create(rapier, 18, 120, "fine-b");
 
-    // Hoist-down (negative) — hoist-up is blocked until lock by interlock.
     normalWorld.setControlInput({
       ...createNeutralPlayerInput(),
       trolleyAxis: 1,
-      hoistAxis: -1,
+      hoistAxis: 1,
       fineMode: false,
     });
     fineWorld.setControlInput({
       ...createNeutralPlayerInput(),
       trolleyAxis: 1,
-      hoistAxis: -1,
+      hoistAxis: 1,
       fineMode: true,
     });
 
@@ -269,8 +270,8 @@ describe("UnloadingScaffoldWorld", () => {
 
     const normalTrolleyDelta = normalWorld.getTrolleyX() - normalStartX;
     const fineTrolleyDelta = fineWorld.getTrolleyX() - fineStartX;
-    const normalHoistDelta = normalWorld.getCableTargetLength() - normalStartLen;
-    const fineHoistDelta = fineWorld.getCableTargetLength() - fineStartLen;
+    const normalHoistDelta = normalStartLen - normalWorld.getCableTargetLength();
+    const fineHoistDelta = fineStartLen - fineWorld.getCableTargetLength();
 
     expect(fineTrolleyDelta).toBeLessThan(normalTrolleyDelta * 0.5);
     expect(fineHoistDelta).toBeLessThan(normalHoistDelta * 0.5);

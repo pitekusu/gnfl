@@ -429,7 +429,7 @@ export class UnloadingScaffoldWorld {
     this.trolleyBody.setNextKinematicRotation(0);
 
     // Hoist: change spring rest length (positive axis shortens = lift).
-    // Ground-break interlock blocks / scales hoist-up until the cask is locked.
+    // Unlocked hoist-up uses interlock scale (default 1 = can reel cable back).
     const hoistAxis = applyUnlockedHoistUpInterlock(
       this.control.hoistAxis,
       this.isLockJointActive(),

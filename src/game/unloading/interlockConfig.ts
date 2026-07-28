@@ -6,8 +6,9 @@ import { z } from "zod";
  */
 export const interlockConfigSchema = z.object({
   /**
-   * Without lock, hoist-up is limited to this fraction of normal max speed.
-   * 0 = fully blocked (preferred for Phase 3 ground-break interlock).
+   * Without lock, hoist-up is scaled by this fraction of normal max speed.
+   * 1 = full speed (default): empty spreader can reel cable back after over-paying.
+   * 0 = fully blocked (hard mode). Cask lift still requires the lock joint either way.
    */
   unlockedHoistUpSpeedScale: z.number().nonnegative().max(1),
   /**
@@ -55,7 +56,7 @@ export const interlockConfigSchema = z.object({
 export type InterlockConfig = z.infer<typeof interlockConfigSchema>;
 
 export const DEFAULT_INTERLOCK_CONFIG: InterlockConfig = interlockConfigSchema.parse({
-  unlockedHoistUpSpeedScale: 0,
+  unlockedHoistUpSpeedScale: 1,
   breakoutLiftDistance: 0.28,
   lowClearanceTrolleySpeedScale: 0.22,
   clearOfHoldMargin: 0.4,
