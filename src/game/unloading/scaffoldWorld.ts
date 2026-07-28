@@ -1,4 +1,9 @@
-import type { CableRenderState, PlayerInput, RenderSnapshot } from "@/game/protocol";
+import type {
+  CableRenderState,
+  PlayerInput,
+  RenderSnapshot,
+  StagePhase,
+} from "@/game/protocol";
 import { createNeutralPlayerInput } from "@/game/protocol";
 import type { RapierModule } from "@/game/simulation/rapierInit";
 import type RAPIER from "@dimforge/rapier2d-compat";
@@ -17,11 +22,17 @@ import {
 } from "@/game/unloading/layout";
 import { integrateCableTargetLength } from "@/game/unloading/hoistMotion";
 import { sampleBaseShipMotion } from "@/game/unloading/shipMotion";
+import {
+  createInitialStageMachineState,
+  reduceStage,
+  type StageMachineEvent,
+  type StageMachineState,
+} from "@/game/unloading/stageMachine";
 import { integrateTrolleyOnRail } from "@/game/unloading/trolleyMotion";
 
 /**
- * Phase 2 world: quay/cradle, ship, trolley, dual-cable spreader, free cask.
- * Hoist control and locking land in later commits.
+ * Unloading greybox world: quay/cradle, ship, trolley, cables, free cask.
+ * Stage machine is owned here; physics events will drive transitions in later commits.
  */
 export class UnloadingScaffoldWorld {
   public static readonly QUAY_ID = "scaffold-quay";
@@ -52,6 +63,7 @@ export class UnloadingScaffoldWorld {
   private lastCableLength = 0;
   private lastCables: CableRenderState[] = [];
   private control: PlayerInput = createNeutralPlayerInput();
+  private stage: StageMachineState = createInitialStageMachineState();
 
   private constructor(
     world: RAPIER.World,
@@ -274,6 +286,26 @@ export class UnloadingScaffoldWorld {
     return { x: t.x, y: t.y };
   }
 
+  public getStagePhase(): StagePhase {
+    return this.stage.phase;
+  }
+
+  public getAbortReason(): string | null {
+    return this.stage.abortReason;
+  }
+
+  /**
+   * Apply a stage event from physics/input (later commits).
+   * Returns whether the transition was accepted.
+   */
+  public dispatchStageEvent(event: StageMachineEvent): boolean {
+    const result = reduceStage(this.stage, event);
+    if (result.accepted) {
+      this.stage = result.state;
+    }
+    return result.accepted;
+  }
+
   public step(): void {
     this.tick += 1;
     const elapsedSeconds = this.tick / this.physicsHz;
@@ -412,7 +444,7 @@ export class UnloadingScaffoldWorld {
     return {
       tick,
       generatedAtMs,
-      stagePhase: "READY",
+      stagePhase: this.stage.phase,
       entities: [
         {
           id: UnloadingScaffoldWorld.SHIP_ID,

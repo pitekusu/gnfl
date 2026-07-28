@@ -14,6 +14,7 @@ export function PhaserGame() {
   const [fineMode, setFineMode] = useState(false);
   const [sway, setSway] = useState(0);
   const [cableLoad, setCableLoad] = useState(0);
+  const [stagePhase, setStagePhase] = useState("READY");
 
   useEffect(() => {
     const host = hostRef.current;
@@ -42,6 +43,7 @@ export function PhaserGame() {
             if (payload.kind === "hud") {
               setSway(payload.sway);
               setCableLoad(payload.cableLoad);
+              setStagePhase(payload.stagePhase);
               return;
             }
             if (payload.status === "error") {
@@ -77,6 +79,12 @@ export function PhaserGame() {
   return (
     <div className="phaser-host" ref={hostRef} data-testid="phaser-host">
       <div className="game-hud" data-testid="game-hud">
+        <div className="game-hud-row">
+          <span className="game-hud-label">工程</span>
+          <span className="game-hud-value game-hud-phase" data-testid="hud-stage-phase">
+            {stagePhase}
+          </span>
+        </div>
         <div className="game-hud-row">
           <span className="game-hud-label">振れ</span>
           <span className="game-hud-value" data-testid="hud-sway">

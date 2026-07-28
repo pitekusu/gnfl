@@ -15,10 +15,22 @@ describe("UnloadingScaffoldWorld", () => {
     expect(snapshot.entities.map((e) => e.kind)).toEqual(
       expect.arrayContaining(["ship", "quay", "cradle", "trolley", "spreader", "cask"]),
     );
+    expect(snapshot.stagePhase).toBe("READY");
+    expect(world.getStagePhase()).toBe("READY");
     expect(snapshot.cables).toHaveLength(2);
     expect(snapshot.cables[0]?.id).toBe("cable-left");
     expect(snapshot.cables[1]?.id).toBe("cable-right");
     expect(() => JSON.stringify(snapshot)).not.toThrow();
+    world.free();
+  });
+
+  it("reflects dispatched stage machine events in snapshots", async () => {
+    const rapier = await initRapier();
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "phase-seed");
+    expect(world.dispatchStageEvent({ type: "ALIGNMENT_OK" })).toBe(true);
+    expect(world.getStagePhase()).toBe("ALIGNING");
+    world.step();
+    expect(world.buildSnapshot(1, 0).stagePhase).toBe("ALIGNING");
     world.free();
   });
 
