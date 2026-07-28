@@ -58,6 +58,8 @@ describe("UnloadingScaffoldWorld", () => {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
       baseForce: 0.01,
       maxForceAbs: 1,
+      lockedBaseForce: 0.01,
+      lockedMaxForceAbs: 1,
       oscWeight: 1,
       directionBias: 0,
     };
@@ -65,6 +67,8 @@ describe("UnloadingScaffoldWorld", () => {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
       baseForce: 95,
       maxForceAbs: 140,
+      lockedBaseForce: 95,
+      lockedMaxForceAbs: 140,
     };
     const calm = UnloadingScaffoldWorld.create(
       rapier,
@@ -319,6 +323,8 @@ describe("UnloadingScaffoldWorld", () => {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
       baseForce: 0.01,
       maxForceAbs: 1,
+      lockedBaseForce: 0.01,
+      lockedMaxForceAbs: 1,
       oscWeight: 1,
     };
     const world = UnloadingScaffoldWorld.create(
@@ -396,6 +402,8 @@ describe("UnloadingScaffoldWorld", () => {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
       baseForce: 0.01,
       maxForceAbs: 1,
+      lockedBaseForce: 0.01,
+      lockedMaxForceAbs: 1,
       oscWeight: 1,
     };
     const world = UnloadingScaffoldWorld.create(
@@ -617,6 +625,8 @@ describe("UnloadingScaffoldWorld", () => {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
       baseForce: 0.01,
       maxForceAbs: 1,
+      lockedBaseForce: 0.01,
+      lockedMaxForceAbs: 1,
       oscWeight: 1,
     };
     const world = UnloadingScaffoldWorld.create(
@@ -675,6 +685,8 @@ describe("UnloadingScaffoldWorld", () => {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
       baseForce: 0.01,
       maxForceAbs: 1,
+      lockedBaseForce: 0.01,
+      lockedMaxForceAbs: 1,
       oscWeight: 1,
     };
     const world = UnloadingScaffoldWorld.create(

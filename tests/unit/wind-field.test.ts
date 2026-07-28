@@ -19,6 +19,8 @@ describe("sampleWind", () => {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
       baseForce: 200,
       maxForceAbs: 35,
+      lockedBaseForce: 200,
+      lockedMaxForceAbs: 35,
     };
     for (let i = 0; i < 40; i += 1) {
       expect(Math.abs(sampleWind("c", i * 0.3, tight).forceX)).toBeLessThanOrEqual(

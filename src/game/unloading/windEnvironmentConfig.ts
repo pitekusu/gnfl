@@ -3,9 +3,13 @@ import { z } from "zod";
 /**
  * Continuous wind on the hanging load (game force units).
  * Multi-frequency zero-mean driver so left and right both appear.
+ *
+ * Pre-lock uses baseForce/maxForceAbs (mild so alignment stays readable).
+ * After the cask is locked, lockedBaseForce/lockedMaxForceAbs apply so
+ * transport feels the stronger ambient push.
  */
 export const windEnvironmentConfigSchema = z.object({
-  /** Peak |force| when the driver is ±1. */
+  /** Peak |force| when unlocked (align / free hang). */
   baseForce: z.number().positive(),
   /**
    * Primary oscillation rate (rad/s) for a seeded sine (guarantees both signs).
@@ -30,12 +34,16 @@ export const windEnvironmentConfigSchema = z.object({
   /** Vertical force as a fraction of |horizontal| (Y-down). */
   verticalCoupling: z.number().min(-0.5).max(0.5),
   maxForceAbs: z.number().positive(),
+  /** Peak |force| while the spreader–cask joint is locked. */
+  lockedBaseForce: z.number().positive(),
+  lockedMaxForceAbs: z.number().positive(),
 });
 
 export type WindEnvironmentConfig = z.infer<typeof windEnvironmentConfigSchema>;
 
 export const DEFAULT_WIND_ENVIRONMENT_CONFIG: WindEnvironmentConfig =
   windEnvironmentConfigSchema.parse({
+    // Mild pre-lock so lock alignment is not a wrestling match.
     baseForce: 16,
     // ~0.35 Hz horizontal push that must visit both signs.
     oscFrequency: 2.15,
@@ -50,6 +58,9 @@ export const DEFAULT_WIND_ENVIRONMENT_CONFIG: WindEnvironmentConfig =
     baseDirectionX: -1,
     verticalCoupling: 0.03,
     maxForceAbs: 26,
+    // Post-lock: earlier moderate transport strength.
+    lockedBaseForce: 45,
+    lockedMaxForceAbs: 70,
   });
 
 export function assertWindEnvironmentConfigInvariants(
@@ -58,9 +69,30 @@ export function assertWindEnvironmentConfigInvariants(
   if (config.baseForce > config.maxForceAbs) {
     throw new Error("wind baseForce must be <= maxForceAbs");
   }
+  if (config.lockedBaseForce > config.lockedMaxForceAbs) {
+    throw new Error("wind lockedBaseForce must be <= lockedMaxForceAbs");
+  }
   if (config.midWeight + config.fastWeight <= 0 && config.oscWeight < 1) {
     throw new Error("wind needs oscWeight > 0 or positive noise weights");
   }
+}
+
+/**
+ * Force scale depends on whether the cask is joint-locked.
+ * Driver (osc/noise) params are shared so direction continuity is preserved.
+ */
+export function windConfigForLoadState(
+  config: WindEnvironmentConfig,
+  locked: boolean,
+): WindEnvironmentConfig {
+  if (!locked) {
+    return config;
+  }
+  return {
+    ...config,
+    baseForce: config.lockedBaseForce,
+    maxForceAbs: config.lockedMaxForceAbs,
+  };
 }
 
 assertWindEnvironmentConfigInvariants(DEFAULT_WIND_ENVIRONMENT_CONFIG);

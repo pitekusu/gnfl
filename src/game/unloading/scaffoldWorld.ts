@@ -53,6 +53,7 @@ import {
 } from "@/game/unloading/waveEnvironmentConfig";
 import {
   DEFAULT_WIND_ENVIRONMENT_CONFIG,
+  windConfigForLoadState,
   type WindEnvironmentConfig,
 } from "@/game/unloading/windEnvironmentConfig";
 import { sampleWind } from "@/game/unloading/windField";
@@ -355,7 +356,7 @@ export class UnloadingScaffoldWorld {
     );
     stage.lastHeave = initialShip.heave;
     stage.lastWaveEnvelope = initialShip.waveEnvelope;
-    const initialWind = sampleWind(seed, 0, wind);
+    const initialWind = sampleWind(seed, 0, windConfigForLoadState(wind, false));
     stage.lastWindHint = initialWind.windHint;
     return stage;
   }
@@ -955,9 +956,11 @@ export class UnloadingScaffoldWorld {
 
   /**
    * Always-on seeded wind on the spreader (locked cask rides the joint).
+   * Mild while unlocked; stronger transport wind after lock.
    */
   private applyWindForces(elapsedSeconds: number): void {
-    const sample = sampleWind(this.seed, elapsedSeconds, this.wind);
+    const active = windConfigForLoadState(this.wind, this.caskLocked);
+    const sample = sampleWind(this.seed, elapsedSeconds, active);
     this.lastWindHint = sample.windHint;
     if (sample.forceX === 0 && sample.forceY === 0) {
       return;
