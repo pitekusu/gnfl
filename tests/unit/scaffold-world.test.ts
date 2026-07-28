@@ -337,17 +337,26 @@ describe("UnloadingScaffoldWorld", () => {
     }
     expect(world.getStagePhase()).toBe("LANDING");
 
-    // Snap to pad (piloted lower or drop-from-above both OK once stable).
+    // Locked careful placement → SEATED, not complete until unlock.
     world.setControlInput(createNeutralPlayerInput());
     for (let i = 0; i < 40; i += 1) {
       world.snapLoadOntoCradlePad();
       world.step();
-      if (world.getStagePhase() === "COMPLETED") {
+      if (world.getStagePhase() === "SEATED") {
         break;
       }
     }
-    expect(world.getStagePhase()).toBe("COMPLETED");
+    expect(world.getStagePhase()).toBe("SEATED");
+    expect(world.isLockJointActive()).toBe(true);
     expect(world.buildSnapshot(1, 0).instruments.locked).toBe(true);
+
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      lockPressed: true,
+    });
+    world.step();
+    expect(world.isLockJointActive()).toBe(false);
+    expect(world.getStagePhase()).toBe("COMPLETED");
     world.free();
   });
 

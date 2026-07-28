@@ -607,6 +607,8 @@ export class UnloadingScaffoldWorld {
     this.control = { ...this.control, lockPressed: false };
 
     if (this.caskLocked) {
+      // On SEATED, unlock completes the careful-placement path.
+      // Otherwise unlock returns to READY for re-lock.
       this.releaseLockJoint();
       this.dispatchStageEvent({ type: "UNLOCK_CONFIRMED" });
       return;
@@ -716,8 +718,9 @@ export class UnloadingScaffoldWorld {
   }
 
   /**
-   * When the cask sits straight and still on the cradle pad long enough →
-   * SEATED then COMPLETED (drop-from-above is OK once it settles).
+   * Stable cradle seating:
+   * - Free / dropped load (unlocked): SEATED → COMPLETED automatically.
+   * - Locked careful placement: SEATED only; COMPLETED on Space unlock.
    */
   private updateSeatingPhase(): void {
     if (
@@ -728,9 +731,12 @@ export class UnloadingScaffoldWorld {
       return;
     }
 
-    // Already seated this tick path — finish the stage immediately.
+    // Locked placement waiting for unlock — allow leave-seat if re-hoisted.
     if (this.stage.phase === "SEATED") {
-      this.dispatchStageEvent({ type: "COMPLETE_CONFIRMED" });
+      if (this.caskLocked) {
+        this.updateSeatedLeaveChecks();
+      }
+      // Unlocked SEATED should not linger (free-drop path completes same frame).
       return;
     }
 
@@ -752,8 +758,22 @@ export class UnloadingScaffoldWorld {
     if (this.seatStableTicks >= this.interlock.seatStableTicks) {
       this.seatStableTicks = 0;
       this.dispatchStageEvent({ type: "SEAT_STABLE" });
-      // Straight seating completes the unloading stage (no extra confirm).
-      this.dispatchStageEvent({ type: "COMPLETE_CONFIRMED" });
+      // Drop / free seating completes immediately; locked seating waits for unlock.
+      if (!this.caskLocked) {
+        this.dispatchStageEvent({ type: "COMPLETE_CONFIRMED" });
+      }
+    }
+  }
+
+  private updateSeatedLeaveChecks(): void {
+    const overCradle = isOverCradleZone(this.trolleyX, this.layout);
+    if (!overCradle) {
+      this.dispatchStageEvent({ type: "BEGIN_TRAVERSE" });
+      return;
+    }
+    const seating = this.evaluateCurrentCradleSeating();
+    if (seating.gapAboveCradle > this.interlock.seatMaxVerticalError) {
+      this.dispatchStageEvent({ type: "SEAT_LOST" });
     }
   }
 

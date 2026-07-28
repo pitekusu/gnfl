@@ -118,7 +118,7 @@ describe("reduceStage", () => {
     expect(state.phase).toBe("COMPLETED");
   });
 
-  it("returns to READY on unlock from any post-lock phase", () => {
+  it("returns to READY on unlock from mid-carry phases", () => {
     for (const mid of [
       [{ type: "ALIGNMENT_OK" as const }, { type: "LOCK_SUCCESS" as const }],
       [
@@ -137,5 +137,19 @@ describe("reduceStage", () => {
       state = reduceStage(state, { type: "UNLOCK_CONFIRMED" }).state;
       expect(state.phase).toBe("READY");
     }
+  });
+
+  it("completes on unlock while SEATED (careful placement)", () => {
+    let state = applyStageEvents(createInitialStageMachineState(), [
+      { type: "ALIGNMENT_OK" },
+      { type: "LOCK_SUCCESS" },
+      { type: "BREAKOUT_LIFT" },
+      { type: "CLEARED_HOLD" },
+      { type: "OVER_CRADLE" },
+      { type: "SEAT_STABLE" },
+    ]);
+    expect(state.phase).toBe("SEATED");
+    state = reduceStage(state, { type: "UNLOCK_CONFIRMED" }).state;
+    expect(state.phase).toBe("COMPLETED");
   });
 });

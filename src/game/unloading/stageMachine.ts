@@ -94,8 +94,13 @@ const UNLOCKABLE_PHASES = new Set<StagePhase>([
 ]);
 
 function nextPhase(phase: StagePhase, event: StageMachineEvent): StagePhase | null {
-  // Unlock is allowed from any post-lock phase and returns to READY for re-lock.
+  // Unlock anywhere while jointed.
+  // Careful placement: unlock on SEATED completes the stage.
+  // Elsewhere: back to READY so the load can be re-locked.
   if (event.type === "UNLOCK_CONFIRMED") {
+    if (phase === "SEATED") {
+      return "COMPLETED";
+    }
     return UNLOCKABLE_PHASES.has(phase) ? "READY" : null;
   }
 
