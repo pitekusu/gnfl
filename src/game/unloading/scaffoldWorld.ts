@@ -525,7 +525,7 @@ export class UnloadingScaffoldWorld {
     this.world.step();
 
     this.updateLockAlignmentAndPhase();
-    this.tryEngageLockFromInput();
+    this.tryLockOrUnlockFromInput();
     this.updateBreakoutLiftPhase();
     this.updateClearOfHoldPhase();
     this.updateTraverseAndCradlePhase();
@@ -582,16 +582,23 @@ export class UnloadingScaffoldWorld {
   }
 
   /**
-   * On Space edge: if alignment is stable, create a fixed joint and enter LOCKED.
+   * Space edge:
+   * - READY/ALIGNING + lockReady → engage joint → LOCKED
+   * - SEATED + locked → release joint and complete the stage
    */
-  private tryEngageLockFromInput(): void {
+  private tryLockOrUnlockFromInput(): void {
     if (!this.control.lockPressed) {
       return;
     }
     // One-shot: clear so held/repeated samples in the same input packet do not re-fire.
     this.control = { ...this.control, lockPressed: false };
 
-    if (this.lockJoint !== null) {
+    if (this.stage.phase === "SEATED") {
+      this.tryUnlockAndCompleteFromSeat();
+      return;
+    }
+
+    if (this.caskLocked || this.lockJoint !== null) {
       return;
     }
     if (!this.lockReady) {
@@ -612,6 +619,26 @@ export class UnloadingScaffoldWorld {
     this.dispatchStageEvent({ type: "LOCK_SUCCESS" });
     this.lockReady = false;
     this.alignStableTicks = 0;
+  }
+
+  /** SEATED + Space: unlock the joint and mark the unloading stage complete. */
+  private tryUnlockAndCompleteFromSeat(): void {
+    if (!this.caskLocked && this.stage.phase === "SEATED") {
+      this.dispatchStageEvent({ type: "COMPLETE_CONFIRMED" });
+      return;
+    }
+    this.releaseLockJoint();
+    this.dispatchStageEvent({ type: "UNLOCK_CONFIRMED" });
+    this.dispatchStageEvent({ type: "COMPLETE_CONFIRMED" });
+  }
+
+  private releaseLockJoint(): void {
+    if (this.lockJoint !== null && this.lockJoint.isValid()) {
+      this.world.removeImpulseJoint(this.lockJoint, true);
+    }
+    this.lockJoint = null;
+    this.caskLocked = false;
+    this.lockEngageCaskY = null;
   }
 
   /**
@@ -923,11 +950,7 @@ export class UnloadingScaffoldWorld {
   }
 
   public free(): void {
-    if (this.lockJoint !== null && this.lockJoint.isValid()) {
-      this.world.removeImpulseJoint(this.lockJoint, true);
-      this.lockJoint = null;
-    }
-    this.caskLocked = false;
+    this.releaseLockJoint();
     this.world.free();
   }
 }

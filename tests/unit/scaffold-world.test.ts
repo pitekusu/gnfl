@@ -18,6 +18,9 @@ describe("UnloadingScaffoldWorld", () => {
     );
     expect(snapshot.stagePhase).toBe("READY");
     expect(world.getStagePhase()).toBe("READY");
+    // Crane starts over the quay, not parked above the hold cask.
+    expect(world.getTrolleyX()).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.crane.spreaderSpawnX, 5);
+    expect(world.getTrolleyX()).toBeGreaterThan(DEFAULT_UNLOADING_LAYOUT.cask.spawnX + 2);
     expect(snapshot.cables).toHaveLength(2);
     expect(snapshot.cables[0]?.id).toBe("cable-left");
     expect(snapshot.cables[1]?.id).toBe("cable-right");
@@ -309,6 +312,77 @@ describe("UnloadingScaffoldWorld", () => {
     }
     expect(world.getStagePhase()).toBe("LANDING");
     expect(world.buildSnapshot(2, 0).instruments.locked).toBe(true);
+    world.free();
+  });
+
+  it("unlocks and completes when Space is pressed while SEATED", async () => {
+    const rapier = await initRapier();
+    const interlock = {
+      ...DEFAULT_INTERLOCK_CONFIG,
+      seatStableTicks: 12,
+    };
+    const world = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "complete-seed",
+      DEFAULT_UNLOADING_LAYOUT,
+      undefined,
+      undefined,
+      interlock,
+    );
+    for (let i = 0; i < 60; i += 1) {
+      world.step();
+    }
+    for (let i = 0; i < 24; i += 1) {
+      world.snapSpreaderToCaskLockPose();
+      world.step();
+    }
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      lockPressed: true,
+    });
+    world.step();
+    expect(world.isLockJointActive()).toBe(true);
+
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      hoistAxis: 1,
+    });
+    for (let i = 0; i < 400; i += 1) {
+      world.step();
+      if (world.getStagePhase() === "CLEAR_OF_HOLD") {
+        break;
+      }
+    }
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      trolleyAxis: 1,
+    });
+    for (let i = 0; i < 900; i += 1) {
+      world.step();
+      if (world.getStagePhase() === "LANDING") {
+        break;
+      }
+    }
+    world.setControlInput(createNeutralPlayerInput());
+    for (let i = 0; i < 40; i += 1) {
+      world.snapLoadOntoCradlePad();
+      world.step();
+      if (world.getStagePhase() === "SEATED") {
+        break;
+      }
+    }
+    expect(world.getStagePhase()).toBe("SEATED");
+
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      lockPressed: true,
+    });
+    world.step();
+    expect(world.isLockJointActive()).toBe(false);
+    expect(world.getStagePhase()).toBe("COMPLETED");
+    expect(world.buildSnapshot(3, 0).instruments.locked).toBe(false);
     world.free();
   });
 

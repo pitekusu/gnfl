@@ -113,7 +113,8 @@ export const DEFAULT_UNLOADING_LAYOUT: UnloadingLayout = unloadingLayoutSchema.p
     spreaderHalfWidth: 0.85,
     spreaderHalfHeight: 0.3,
     spreaderCableAttachHalfSpan: 0.5,
-    spreaderSpawnX: -9.5,
+    // Start over the quay (not over the ship hold) so the run begins at the berth.
+    spreaderSpawnX: 4,
     spreaderSpawnY: 2.8,
   },
   cask: {
@@ -175,6 +176,10 @@ export function assertUnloadingLayoutInvariants(layout: UnloadingLayout): void {
   }
   if (layout.cask.spawnY <= layout.crane.spreaderSpawnY) {
     throw new Error("cask spawn should be below the initial spreader");
+  }
+  // Crane starts on the quay side of the water gap (not parked over the ship).
+  if (layout.crane.spreaderSpawnX < quayLeftX(layout)) {
+    throw new Error("spreader spawn should start over the quay, not over the berth");
   }
 }
 

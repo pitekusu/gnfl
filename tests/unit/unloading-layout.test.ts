@@ -32,6 +32,15 @@ describe("unloading layout", () => {
     ).toBeGreaterThanOrEqual(1.5);
   });
 
+  it("starts the crane over the quay, not over the ship hold", () => {
+    expect(DEFAULT_UNLOADING_LAYOUT.crane.spreaderSpawnX).toBeGreaterThanOrEqual(
+      quayLeftX(DEFAULT_UNLOADING_LAYOUT),
+    );
+    expect(DEFAULT_UNLOADING_LAYOUT.crane.spreaderSpawnX).toBeGreaterThan(
+      DEFAULT_UNLOADING_LAYOUT.cask.spawnX,
+    );
+  });
+
   it("rejects inverted rail limits", () => {
     const bad = {
       ...DEFAULT_UNLOADING_LAYOUT,
