@@ -4,8 +4,8 @@ export function GameScreen() {
   return (
     <section className="screen game-layout" aria-label="Game">
       <div className="game-toolbar">
-        <span>Phase 2 完了相当 — A/D 横行 · W/S 巻上 · Shift 緩速 · Esc 一時停止</span>
-        <span>確認: 振れ / 急停止 / 緩速位置合わせ（ロックは Phase 3）</span>
+        <span>Phase 3 C1 — lock/interlock config only（挙動は Phase 2 と同じ）</span>
+        <span>A/D 横行 · W/S 巻上 · Shift 緩速 · Space ロックは後続コミット</span>
       </div>
       <PhaserGame />
     </section>
