@@ -279,31 +279,46 @@ describe("UnloadingScaffoldWorld", () => {
     }
     expect(world.getStagePhase()).toBe("LANDING");
 
-    // Snap to pad (piloted lower is possible in-game; jointed swing makes CI flaky).
+    // Snap to pad (piloted lower or drop-from-above both OK once stable).
     world.setControlInput(createNeutralPlayerInput());
     for (let i = 0; i < 40; i += 1) {
       world.snapLoadOntoCradlePad();
       world.step();
-      if (world.getStagePhase() === "SEATED") {
+      if (world.getStagePhase() === "COMPLETED") {
         break;
       }
     }
-    expect(world.getStagePhase()).toBe("SEATED");
+    expect(world.getStagePhase()).toBe("COMPLETED");
     expect(world.buildSnapshot(1, 0).instruments.locked).toBe(true);
+    world.free();
+  });
 
-    // Re-hoist off the pad → leave SEATED back to LANDING.
-    world.setControlInput({
-      ...createNeutralPlayerInput(),
-      hoistAxis: 1,
-    });
-    for (let i = 0; i < 180; i += 1) {
+  it("completes when a free cask settles straight on the cradle pad", async () => {
+    const rapier = await initRapier();
+    const interlock = {
+      ...DEFAULT_INTERLOCK_CONFIG,
+      seatStableTicks: 12,
+    };
+    const world = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "drop-seat-seed",
+      DEFAULT_UNLOADING_LAYOUT,
+      undefined,
+      undefined,
+      interlock,
+    );
+    // No lock — place free cask on the pad and hold still.
+    for (let i = 0; i < 30; i += 1) {
+      world.snapLoadOntoCradlePad();
       world.step();
-      if (world.getStagePhase() === "LANDING") {
+      if (world.getStagePhase() === "COMPLETED") {
         break;
       }
     }
-    expect(world.getStagePhase()).toBe("LANDING");
-    expect(world.buildSnapshot(2, 0).instruments.locked).toBe(true);
+    expect(world.getStagePhase()).toBe("COMPLETED");
+    expect(world.isLockJointActive()).toBe(false);
     world.free();
   });
 

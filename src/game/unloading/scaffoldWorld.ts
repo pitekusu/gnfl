@@ -703,16 +703,27 @@ export class UnloadingScaffoldWorld {
   }
 
   /**
-   * LANDING → SEATED after stable pad contact;
-   * SEATED → LANDING / TRAVERSING if the load is lifted or moved off the cradle.
+   * When the cask sits straight and still on the cradle pad long enough →
+   * SEATED then COMPLETED (drop-from-above is OK once it settles).
    */
   private updateSeatingPhase(): void {
-    if (this.stage.phase === "SEATED") {
-      this.updateSeatedLeaveChecks();
+    if (
+      this.stage.phase === "COMPLETED" ||
+      this.stage.phase === "SAFE_ABORTED"
+    ) {
+      this.seatStableTicks = 0;
       return;
     }
 
-    if (this.stage.phase !== "LANDING") {
+    // Already seated this tick path — finish the stage immediately.
+    if (this.stage.phase === "SEATED") {
+      this.dispatchStageEvent({ type: "COMPLETE_CONFIRMED" });
+      return;
+    }
+
+    const caskX = this.caskBody.translation().x;
+    // Use cask position so a free drop into the pad counts (not only trolley X).
+    if (!isOverCradleZone(caskX, this.layout)) {
       this.seatStableTicks = 0;
       return;
     }
@@ -722,24 +733,14 @@ export class UnloadingScaffoldWorld {
       this.seatStableTicks += 1;
     } else {
       this.seatStableTicks = 0;
+      return;
     }
 
     if (this.seatStableTicks >= this.interlock.seatStableTicks) {
-      this.dispatchStageEvent({ type: "SEAT_STABLE" });
       this.seatStableTicks = 0;
-    }
-  }
-
-  private updateSeatedLeaveChecks(): void {
-    const overCradle = isOverCradleZone(this.trolleyX, this.layout);
-    if (!overCradle) {
-      this.dispatchStageEvent({ type: "BEGIN_TRAVERSE" });
-      return;
-    }
-    const seating = this.evaluateCurrentCradleSeating();
-    // Clearly floating above the pad again (re-hoist) → back to LANDING.
-    if (seating.gapAboveCradle > this.interlock.seatMaxVerticalError) {
-      this.dispatchStageEvent({ type: "SEAT_LOST" });
+      this.dispatchStageEvent({ type: "SEAT_STABLE" });
+      // Straight seating completes the unloading stage (no extra confirm).
+      this.dispatchStageEvent({ type: "COMPLETE_CONFIRMED" });
     }
   }
 

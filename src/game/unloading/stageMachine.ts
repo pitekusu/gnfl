@@ -99,6 +99,19 @@ function nextPhase(phase: StagePhase, event: StageMachineEvent): StagePhase | nu
     return UNLOCKABLE_PHASES.has(phase) ? "READY" : null;
   }
 
+  // Straight seating on the cradle pad can complete from any active phase
+  // (lower carefully or drop from above — stability is checked in physics).
+  if (event.type === "SEAT_STABLE") {
+    if (
+      phase === "COMPLETED" ||
+      phase === "SAFE_ABORTED" ||
+      phase === "SEATED"
+    ) {
+      return null;
+    }
+    return "SEATED";
+  }
+
   switch (phase) {
     case "READY":
       if (event.type === "ALIGNMENT_OK") {
@@ -144,9 +157,6 @@ function nextPhase(phase: StagePhase, event: StageMachineEvent): StagePhase | nu
       return null;
 
     case "LANDING":
-      if (event.type === "SEAT_STABLE") {
-        return "SEATED";
-      }
       // Left the cradle zone while still landing.
       if (event.type === "BEGIN_TRAVERSE") {
         return "TRAVERSING";

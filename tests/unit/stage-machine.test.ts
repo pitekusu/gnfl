@@ -110,6 +110,14 @@ describe("reduceStage", () => {
     expect(state.phase).toBe("LANDING");
   });
 
+  it("accepts SEAT_STABLE from READY (drop-in seating)", () => {
+    let state = createInitialStageMachineState();
+    state = reduceStage(state, { type: "SEAT_STABLE" }).state;
+    expect(state.phase).toBe("SEATED");
+    state = reduceStage(state, { type: "COMPLETE_CONFIRMED" }).state;
+    expect(state.phase).toBe("COMPLETED");
+  });
+
   it("returns to READY on unlock from any post-lock phase", () => {
     for (const mid of [
       [{ type: "ALIGNMENT_OK" as const }, { type: "LOCK_SUCCESS" as const }],
