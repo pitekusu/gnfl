@@ -47,6 +47,10 @@ import {
   applyAxisDeadzone,
   integrateTrolleyOnRail,
 } from "@/game/unloading/trolleyMotion";
+import {
+  DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+  type WaveEnvironmentConfig,
+} from "@/game/unloading/waveEnvironmentConfig";
 
 /**
  * Unloading greybox world: quay/cradle, ship, trolley, cables, free cask.
@@ -72,10 +76,12 @@ export class UnloadingScaffoldWorld {
   private readonly physics: CranePhysicsConfig;
   private readonly lockConfig: LockConfig;
   private readonly interlock: InterlockConfig;
+  private readonly wave: WaveEnvironmentConfig;
   private readonly physicsDtSeconds: number;
   private readonly physicsHz: number;
   private readonly seed: string;
   private lastHeave = 0;
+  private lastWaveEnvelope = 1;
   private tick = 0;
   private trolleyX: number;
   private trolleyVelocity = 0;
@@ -107,6 +113,7 @@ export class UnloadingScaffoldWorld {
     physics: CranePhysicsConfig,
     lockConfig: LockConfig,
     interlock: InterlockConfig,
+    wave: WaveEnvironmentConfig,
     physicsDtSeconds: number,
     physicsHz: number,
     seed: string,
@@ -125,6 +132,7 @@ export class UnloadingScaffoldWorld {
     this.physics = physics;
     this.lockConfig = lockConfig;
     this.interlock = interlock;
+    this.wave = wave;
     this.physicsDtSeconds = physicsDtSeconds;
     this.physicsHz = physicsHz;
     this.seed = seed;
@@ -141,6 +149,7 @@ export class UnloadingScaffoldWorld {
     physics: CranePhysicsConfig = DEFAULT_CRANE_PHYSICS_CONFIG,
     lockConfig: LockConfig = DEFAULT_LOCK_CONFIG,
     interlock: InterlockConfig = DEFAULT_INTERLOCK_CONFIG,
+    wave: WaveEnvironmentConfig = DEFAULT_WAVE_ENVIRONMENT_CONFIG,
   ): UnloadingScaffoldWorld {
     const physicsDtSeconds = 1 / physicsHz;
     const world = new rapier.World({ x: 0, y: gravityY });
@@ -209,10 +218,15 @@ export class UnloadingScaffoldWorld {
       cradleBody,
     );
 
-    const initialShip = sampleBaseShipMotion(seed, 0, {
-      x: layout.ship.restCenterX,
-      y: layout.ship.restCenterY,
-    });
+    const initialShip = sampleBaseShipMotion(
+      seed,
+      0,
+      {
+        x: layout.ship.restCenterX,
+        y: layout.ship.restCenterY,
+      },
+      { wave },
+    );
 
     const shipBody = world.createRigidBody(
       rapier.RigidBodyDesc.kinematicPositionBased()
@@ -321,6 +335,7 @@ export class UnloadingScaffoldWorld {
       physics,
       lockConfig,
       interlock,
+      wave,
       physicsDtSeconds,
       physicsHz,
       seed,
@@ -328,6 +343,7 @@ export class UnloadingScaffoldWorld {
       cableTargetLength,
     );
     stage.lastHeave = initialShip.heave;
+    stage.lastWaveEnvelope = initialShip.waveEnvelope;
     return stage;
   }
 
@@ -521,9 +537,10 @@ export class UnloadingScaffoldWorld {
         x: this.layout.ship.restCenterX,
         y: this.layout.ship.restCenterY,
       },
-      { highWaveEnvelope: 0 },
+      { wave: this.wave },
     );
     this.lastHeave = pose.heave;
+    this.lastWaveEnvelope = pose.waveEnvelope;
     this.shipBody.setNextKinematicTranslation({ x: pose.x, y: pose.y });
     this.shipBody.setNextKinematicRotation(pose.angleRad);
 
@@ -1010,9 +1027,15 @@ export class UnloadingScaffoldWorld {
       },
       weather: {
         windHint: 0,
+        // Signed heave for motion feel; envelope is available via magnitude later.
         waveHint: this.lastHeave,
       },
     };
+  }
+
+  /** Test/debug: current continuous wave amplitude envelope. */
+  public getWaveEnvelope(): number {
+    return this.lastWaveEnvelope;
   }
 
   public free(): void {
