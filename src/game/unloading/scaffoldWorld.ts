@@ -34,7 +34,7 @@ import { integrateTrolleyOnRail } from "@/game/unloading/trolleyMotion";
 
 /**
  * Unloading greybox world: quay/cradle, ship, trolley, cables, free cask.
- * Stage machine is owned here; physics events will drive transitions in later commits.
+ * Stage machine is owned here; lock joint engages on Space when lockReady.
  */
 export class UnloadingScaffoldWorld {
   public static readonly QUAY_ID = "scaffold-quay";
@@ -44,6 +44,7 @@ export class UnloadingScaffoldWorld {
   public static readonly SPREADER_ID = "scaffold-spreader";
   public static readonly CASK_ID = "scaffold-cask";
 
+  private readonly rapier: RapierModule;
   private readonly world: RAPIER.World;
   private readonly quayBody: RAPIER.RigidBody;
   private readonly cradleBody: RAPIER.RigidBody;
@@ -69,8 +70,10 @@ export class UnloadingScaffoldWorld {
   private stage: StageMachineState = createInitialStageMachineState();
   private alignStableTicks = 0;
   private lockReady = false;
+  private lockJoint: RAPIER.ImpulseJoint | null = null;
 
   private constructor(
+    rapier: RapierModule,
     world: RAPIER.World,
     quayBody: RAPIER.RigidBody,
     cradleBody: RAPIER.RigidBody,
@@ -87,6 +90,7 @@ export class UnloadingScaffoldWorld {
     trolleyX: number,
     cableTargetLength: number,
   ) {
+    this.rapier = rapier;
     this.world = world;
     this.quayBody = quayBody;
     this.cradleBody = cradleBody;
@@ -253,6 +257,7 @@ export class UnloadingScaffoldWorld {
     );
 
     const stage = new UnloadingScaffoldWorld(
+      rapier,
       world,
       quayBody,
       cradleBody,
@@ -305,6 +310,41 @@ export class UnloadingScaffoldWorld {
 
   public isLockReady(): boolean {
     return this.lockReady;
+  }
+
+  /** True after Space engaged the spreader–cask fixed joint. */
+  public isLockJointActive(): boolean {
+    return this.lockJoint !== null && this.lockJoint.isValid();
+  }
+
+  /**
+   * Place spreader on the cask top face with zero relative velocity.
+   * Intended for tests (and debug) so lockReady can be reached without piloting.
+   */
+  public snapSpreaderToCaskLockPose(): void {
+    const cask = this.caskBody.translation();
+    const idealY =
+      cask.y - this.layout.cask.halfHeight - this.layout.crane.spreaderHalfHeight;
+    this.spreaderBody.setTranslation({ x: cask.x, y: idealY }, true);
+    this.spreaderBody.setRotation(this.caskBody.rotation(), true);
+    this.spreaderBody.setLinvel({ x: 0, y: 0 }, true);
+    this.spreaderBody.setAngvel(0, true);
+    this.caskBody.setLinvel({ x: 0, y: 0 }, true);
+    this.caskBody.setAngvel(0, true);
+    // Keep trolley above the cask so cables do not yank the pair sideways.
+    this.trolleyX = cask.x;
+    this.trolleyVelocity = 0;
+    this.trolleyBody.setNextKinematicTranslation({
+      x: this.trolleyX,
+      y: this.layout.crane.railY,
+    });
+    this.trolleyBody.setNextKinematicRotation(0);
+    const hang = idealY - this.layout.crane.railY;
+    this.cableTargetLength = clampCableTargetLength(
+      hang,
+      this.physics.hoist.minCableLength,
+      this.physics.hoist.maxCableLength,
+    );
   }
 
   /**
@@ -377,10 +417,11 @@ export class UnloadingScaffoldWorld {
     this.world.step();
 
     this.updateLockAlignmentAndPhase();
+    this.tryEngageLockFromInput();
   }
 
   private updateLockAlignmentAndPhase(): void {
-    // Only evaluate free-cask lock before LOCKED (joint comes in C5).
+    // Only evaluate free-cask lock before LOCKED.
     if (this.stage.phase !== "READY" && this.stage.phase !== "ALIGNING") {
       this.lockReady = false;
       this.alignStableTicks = 0;
@@ -426,6 +467,66 @@ export class UnloadingScaffoldWorld {
     } else if (this.stage.phase === "ALIGNING") {
       this.dispatchStageEvent({ type: "ALIGNMENT_LOST" });
     }
+  }
+
+  /**
+   * On Space edge: if alignment is stable, create a fixed joint and enter LOCKED.
+   */
+  private tryEngageLockFromInput(): void {
+    if (!this.control.lockPressed) {
+      return;
+    }
+    // One-shot: clear so held/repeated samples in the same input packet do not re-fire.
+    this.control = { ...this.control, lockPressed: false };
+
+    if (this.lockJoint !== null) {
+      return;
+    }
+    if (!this.lockReady) {
+      return;
+    }
+    if (this.stage.phase !== "READY" && this.stage.phase !== "ALIGNING") {
+      return;
+    }
+
+    // Ensure machine is on ALIGNING before LOCK_SUCCESS.
+    if (this.stage.phase === "READY") {
+      this.dispatchStageEvent({ type: "ALIGNMENT_OK" });
+    }
+
+    this.createLockJoint();
+    this.dispatchStageEvent({ type: "LOCK_SUCCESS" });
+    this.lockReady = false;
+    this.alignStableTicks = 0;
+  }
+
+  private createLockJoint(): void {
+    const spreaderT = this.spreaderBody.translation();
+    const caskT = this.caskBody.translation();
+    const spreaderBottomY = spreaderT.y + this.layout.crane.spreaderHalfHeight;
+    const caskTopY = caskT.y - this.layout.cask.halfHeight;
+    const lockWorld: Vec2 = {
+      x: (spreaderT.x + caskT.x) * 0.5,
+      y: (spreaderBottomY + caskTopY) * 0.5,
+    };
+
+    const anchor1 = worldPointToLocal(this.spreaderBody, lockWorld.x, lockWorld.y);
+    const anchor2 = worldPointToLocal(this.caskBody, lockWorld.x, lockWorld.y);
+    const rot1 = this.spreaderBody.rotation();
+    const rot2 = this.caskBody.rotation();
+    // Freeze current relative orientation: world frames coincide at creation.
+    const frame1 = 0;
+    const frame2 = rot1 - rot2;
+
+    const params = this.rapier.JointData.fixed(anchor1, frame1, anchor2, frame2);
+    const joint = this.world.createImpulseJoint(
+      params,
+      this.spreaderBody,
+      this.caskBody,
+      true,
+    );
+    joint.setContactsEnabled(false);
+    this.lockJoint = joint;
   }
 
   private applyCableForces(): void {
@@ -580,6 +681,10 @@ export class UnloadingScaffoldWorld {
   }
 
   public free(): void {
+    if (this.lockJoint !== null && this.lockJoint.isValid()) {
+      this.world.removeImpulseJoint(this.lockJoint, true);
+      this.lockJoint = null;
+    }
     this.world.free();
   }
 }
@@ -596,6 +701,24 @@ function worldPointOnBody(
   return {
     x: t.x + localX * cos - localY * sin,
     y: t.y + localX * sin + localY * cos,
+  };
+}
+
+/** Inverse of worldPointOnBody — world → body-local. */
+function worldPointToLocal(
+  body: RAPIER.RigidBody,
+  worldX: number,
+  worldY: number,
+): Vec2 {
+  const t = body.translation();
+  const angle = body.rotation();
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const dx = worldX - t.x;
+  const dy = worldY - t.y;
+  return {
+    x: dx * cos + dy * sin,
+    y: -dx * sin + dy * cos,
   };
 }
 

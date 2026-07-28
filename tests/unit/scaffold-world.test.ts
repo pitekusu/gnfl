@@ -41,15 +41,99 @@ describe("UnloadingScaffoldWorld", () => {
   it("sets lockReady when spreader is held aligned over the cask", async () => {
     const rapier = await initRapier();
     const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "align-seed");
-    // Settle, then gently place spreader near cask via hoist/trolley inputs is hard;
-    // instead step many ticks — lockReady may stay false if far, so we only check
-    // the field exists and stays boolean; unit math is covered in lock-alignment.
-    for (let i = 0; i < 30; i += 1) {
+    // Settle cask, then snap spreader into ideal pose and hold still.
+    for (let i = 0; i < 60; i += 1) {
       world.step();
     }
-    const snap = world.buildSnapshot(30, 0);
-    expect(typeof snap.instruments.lockReady).toBe("boolean");
-    expect(typeof world.isLockReady()).toBe("boolean");
+    world.snapSpreaderToCaskLockPose();
+    for (let i = 0; i < 20; i += 1) {
+      world.snapSpreaderToCaskLockPose();
+      world.step();
+    }
+    expect(world.isLockReady()).toBe(true);
+    expect(world.buildSnapshot(80, 0).instruments.lockReady).toBe(true);
+    expect(world.getStagePhase()).toBe("ALIGNING");
+    world.free();
+  });
+
+  it("engages fixed lock joint on Space when lockReady", async () => {
+    const rapier = await initRapier();
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "lock-seed");
+    for (let i = 0; i < 60; i += 1) {
+      world.step();
+    }
+    for (let i = 0; i < 24; i += 1) {
+      world.snapSpreaderToCaskLockPose();
+      world.step();
+    }
+    expect(world.isLockReady()).toBe(true);
+
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      lockPressed: true,
+    });
+    world.step();
+
+    expect(world.isLockJointActive()).toBe(true);
+    expect(world.getStagePhase()).toBe("LOCKED");
+    expect(world.buildSnapshot(100, 0).stagePhase).toBe("LOCKED");
+    expect(world.isLockReady()).toBe(false);
+
+    // Space without readiness should not create a second joint path — already locked.
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      lockPressed: true,
+    });
+    world.step();
+    expect(world.getStagePhase()).toBe("LOCKED");
+    world.free();
+  });
+
+  it("does not lock when Space is pressed without lockReady", async () => {
+    const rapier = await initRapier();
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "nolock-seed");
+    world.step();
+    expect(world.isLockReady()).toBe(false);
+
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      lockPressed: true,
+    });
+    world.step();
+
+    expect(world.isLockJointActive()).toBe(false);
+    expect(world.getStagePhase()).toBe("READY");
+    world.free();
+  });
+
+  it("lifts the cask with the spreader after lock", async () => {
+    const rapier = await initRapier();
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "lift-seed");
+    for (let i = 0; i < 60; i += 1) {
+      world.step();
+    }
+    for (let i = 0; i < 24; i += 1) {
+      world.snapSpreaderToCaskLockPose();
+      world.step();
+    }
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      lockPressed: true,
+    });
+    world.step();
+    expect(world.getStagePhase()).toBe("LOCKED");
+
+    const caskBefore = world.getCaskTranslation();
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      hoistAxis: 1,
+    });
+    for (let i = 0; i < 180; i += 1) {
+      world.step();
+    }
+    const caskAfter = world.getCaskTranslation();
+    // Y-down: lifting moves the locked cask toward the rail (smaller y).
+    expect(caskAfter.y).toBeLessThan(caskBefore.y - 0.3);
     world.free();
   });
 
