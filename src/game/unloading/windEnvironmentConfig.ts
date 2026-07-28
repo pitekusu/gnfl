@@ -2,82 +2,84 @@ import { z } from "zod";
 
 /**
  * Continuous wind environment for the hanging load (game force units / 1/s).
- * Always-on; strength varies with seeded noise. No discrete gust events.
+ * Always-on; strength and direction vary with seeded noise. No discrete gust events.
  */
 export const windEnvironmentConfigSchema = z.object({
   /**
-   * Mean horizontal force magnitude applied toward {@link baseDirectionX}
-   * before noise modulation (game force units on the spreader).
+   * Peak horizontal force magnitude scale (game force units on the spreader)
+   * when the magnitude modulator is at 1.
    */
-  baseForce: z.number().nonnegative(),
+  baseForce: z.number().positive(),
   /**
-   * Sign of the mean wind: -1 = left (shipward on our layout), +1 = right (quayward).
-   * Noise can still reverse the instantaneous force when variation is high.
+   * Preferred mean direction when {@link directionBias} &gt; 0:
+   * -1 = left (shipward), +1 = right (quayward).
    */
   baseDirectionX: z.union([z.literal(-1), z.literal(1)]),
   /**
-   * How strongly signed noise can override {@link baseDirectionX}.
-   * 0 = constant wind in baseDirectionX only.
-   * 1 = fully bidirectional (left and right over time).
-   * Instant signed driver = baseDirectionX * (1 - variation) + noise * variation.
+   * 0 = pure bidirectional (equal time left/right on average).
+   * 1 = always {@link baseDirectionX}.
+   * Soft bias only; with 0 the wind clearly reverses.
    */
-  variation: z.number().nonnegative().max(1),
+  directionBias: z.number().nonnegative().max(1),
   /**
-   * Multiplies elapsed seconds for the primary strength noise sample.
-   * Lower = slower changes in wind strength.
+   * How often the wind direction lattice advances (higher = faster left/right switches).
+   * Multiplies elapsed seconds for direction sampling.
    */
-  noiseSpeed: z.number().nonnegative(),
-  /** Lane for primary strength noise ({@link sampleSeededUnitNoise1D}). */
-  noiseLane: z.number().int().nonnegative(),
+  directionSpeed: z.number().positive(),
+  /** Lane for direction lattice / noise. */
+  directionLane: z.number().int().nonnegative(),
   /**
-   * Optional second, faster noise mixed in for small jitter (0 = off).
-   * Multiplies elapsed seconds for the jitter lane.
+   * Minimum |force| as a fraction of baseForce (always some push).
+   * 0.55 ⇒ never drops below 55% of baseForce.
+   */
+  minForceFraction: z.number().positive().max(1),
+  /**
+   * Multiplies elapsed seconds for magnitude noise (strength breathing).
+   */
+  magnitudeSpeed: z.number().nonnegative(),
+  /** Lane for magnitude unit noise. */
+  magnitudeLane: z.number().int().nonnegative(),
+  /**
+   * Optional faster jitter on magnitude (0 mix = off).
    */
   jitterSpeed: z.number().nonnegative(),
-  /** Amplitude of jitter mixed into unit noise before force mapping (0..1 typical). */
   jitterMix: z.number().nonnegative().max(1),
-  /** Lane for jitter noise. */
   jitterLane: z.number().int().nonnegative(),
   /**
-   * Optional vertical force as a fraction of |horizontal| (Y-down positive = down).
-   * 0 = pure side wind. Small positive adds a slight downward push.
+   * Vertical force as a fraction of |horizontal| (Y-down positive = down).
    */
   verticalCoupling: z.number().min(-0.5).max(0.5),
-  /**
-   * Absolute clamp on |force.x| after modulation (safety for greybox stability).
-   */
+  /** Absolute clamp on |force.x|. */
   maxForceAbs: z.number().positive(),
 });
 
 export type WindEnvironmentConfig = z.infer<typeof windEnvironmentConfigSchema>;
 
 /**
- * Defaults: always some side wind that breathes in strength.
- * Tuned when pure sampleWind + scaffold wiring land (next commits).
+ * Strong, always-on wind that spends time both left and right.
  */
 export const DEFAULT_WIND_ENVIRONMENT_CONFIG: WindEnvironmentConfig =
   windEnvironmentConfigSchema.parse({
-    baseForce: 50,
+    baseForce: 140,
     baseDirectionX: -1,
-    // High enough that wind clearly reverses left/right over time.
-    variation: 1,
-    noiseSpeed: 0.14,
-    noiseLane: 21,
-    jitterSpeed: 0.6,
-    jitterMix: 0.25,
-    jitterLane: 22,
-    verticalCoupling: 0.05,
-    maxForceAbs: 120,
+    directionBias: 0,
+    // ~ flip every few seconds (lattice cell width ≈ 1 / directionSpeed seconds at cell step 1)
+    directionSpeed: 0.22,
+    directionLane: 31,
+    minForceFraction: 0.6,
+    magnitudeSpeed: 0.18,
+    magnitudeLane: 32,
+    jitterSpeed: 0.7,
+    jitterMix: 0.2,
+    jitterLane: 33,
+    verticalCoupling: 0.04,
+    maxForceAbs: 220,
   });
 
 export function assertWindEnvironmentConfigInvariants(
   config: WindEnvironmentConfig,
 ): void {
   if (config.baseForce > config.maxForceAbs) {
-    throw new Error("wind baseForce must be <= maxForceAbs");
-  }
-  // |forceX| peaks near baseForce when |signed| = 1.
-  if (config.baseForce > config.maxForceAbs * 1.001) {
     throw new Error("wind baseForce must be <= maxForceAbs");
   }
 }

@@ -387,10 +387,18 @@ describe("UnloadingScaffoldWorld", () => {
 
   it("seats the load on the cradle after landing and lowering", async () => {
     const rapier = await initRapier();
-    // Short seat hold for a faster integration test.
+    // Short seat hold for a faster integration test; calm wind so lock/seat path is stable.
     const interlock = {
       ...DEFAULT_INTERLOCK_CONFIG,
       seatStableTicks: 12,
+    };
+    const noWind = {
+      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
+      baseForce: 0.01,
+      minForceFraction: 1,
+      directionBias: 1,
+      maxForceAbs: 1,
+      jitterMix: 0,
     };
     const world = UnloadingScaffoldWorld.create(
       rapier,
@@ -398,9 +406,11 @@ describe("UnloadingScaffoldWorld", () => {
       120,
       "seat-seed",
       DEFAULT_UNLOADING_LAYOUT,
-      undefined,
-      undefined,
+      DEFAULT_CRANE_PHYSICS_CONFIG,
+      DEFAULT_LOCK_CONFIG,
       interlock,
+      DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+      noWind,
     );
     for (let i = 0; i < 60; i += 1) {
       world.step();

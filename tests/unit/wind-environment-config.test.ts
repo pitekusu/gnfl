@@ -15,8 +15,11 @@ describe("windEnvironmentConfig", () => {
     ).not.toThrow();
   });
 
-  it("keeps a non-zero base force for always-on wind", () => {
-    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeGreaterThan(0);
+  it("keeps a strong always-on base force", () => {
+    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeGreaterThanOrEqual(100);
+    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.minForceFraction).toBeGreaterThanOrEqual(
+      0.5,
+    );
   });
 
   it("rejects invalid baseDirectionX", () => {
@@ -28,21 +31,11 @@ describe("windEnvironmentConfig", () => {
     ).toThrow();
   });
 
-  it("rejects variation above schema max", () => {
-    expect(() =>
-      windEnvironmentConfigSchema.parse({
-        ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
-        variation: 3,
-      }),
-    ).toThrow();
-  });
-
   it("rejects baseForce above maxForceAbs via invariant", () => {
     const bad = windEnvironmentConfigSchema.parse({
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
       baseForce: 200,
       maxForceAbs: 100,
-      variation: 0,
     });
     expect(() => assertWindEnvironmentConfigInvariants(bad)).toThrow(/baseForce/);
   });
@@ -50,10 +43,10 @@ describe("windEnvironmentConfig", () => {
   it("accepts a calm always-on breeze", () => {
     const calm = windEnvironmentConfigSchema.parse({
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
-      baseForce: 12,
-      variation: 0.3,
-      maxForceAbs: 40,
-      jitterMix: 0,
+      baseForce: 30,
+      minForceFraction: 0.5,
+      maxForceAbs: 60,
+      directionBias: 0,
     });
     expect(() => assertWindEnvironmentConfigInvariants(calm)).not.toThrow();
   });

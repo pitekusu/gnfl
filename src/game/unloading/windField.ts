@@ -1,7 +1,4 @@
-import {
-  sampleSeededNoise1D,
-  sampleSeededUnitNoise1D,
-} from "@/game/unloading/seededNoise";
+import { sampleSeededUnitNoise1D, seedUnit } from "@/game/unloading/seededNoise";
 import {
   DEFAULT_WIND_ENVIRONMENT_CONFIG,
   type WindEnvironmentConfig,
@@ -11,78 +8,119 @@ export interface WindSample {
   /** Force on the load in world axes (Y-down). */
   forceX: number;
   forceY: number;
-  /**
-   * Signed strength hint for HUD / visuals in roughly [-1, 1]
-   * (forceX / maxForceAbs).
-   */
+  /** Signed strength hint for HUD in roughly [-1, 1] (forceX / maxForceAbs). */
   windHint: number;
-  /**
-   * Blended signed driver in [-1, 1] after bias + noise
-   * (debug / tests; positive = +X wind).
-   */
-  signed: number;
-  /** Slow unit noise in [0, 1] used for magnitude modulation. */
-  unit: number;
+  /** Instantaneous direction −1 or +1 after bias. */
+  direction: number;
+  /** Magnitude modulator in [minForceFraction, 1]. */
+  magnitudeScale: number;
 }
 
 /**
  * Continuous seeded wind at time t. Pure — same seed + t + config ⇒ same sample.
  *
- * Direction can reverse over time:
- *   signedNoise ∈ [-1, 1] from smooth noise (+ optional jitter)
- *   signed = baseDirectionX * (1 - variation) + signedNoise * variation
- *   mag = baseForce * (minMag + (1 - minMag) * |signedNoise blended unit|)
- *   forceX = clamp(baseForce * signed, ±maxForceAbs) with magnitude from |signed|
- *
- * Simpler equivalent used here:
- *   forceX = baseForce * signed, then clamp
- * so variation=0 → constant baseDirectionX * baseForce
- * variation=1 → fully bidirectional noise
+ * - Direction: slow lattice of ±1 (spends clear time on each side, not stuck +X).
+ * - Magnitude: always ≥ minForceFraction * baseForce, breathes with noise.
  */
 export function sampleWind(
   seed: string,
   elapsedSeconds: number,
   config: WindEnvironmentConfig = DEFAULT_WIND_ENVIRONMENT_CONFIG,
 ): WindSample {
-  const primarySigned =
-    config.noiseSpeed <= 0
-      ? 0
-      : sampleSeededNoise1D(seed, config.noiseLane, elapsedSeconds * config.noiseSpeed);
+  const direction = sampleWindDirection(seed, elapsedSeconds, config);
+  const magnitudeScale = sampleMagnitudeScale(seed, elapsedSeconds, config);
 
-  let signedNoise = primarySigned;
+  let forceX = config.baseForce * magnitudeScale * direction;
+  forceX = clamp(forceX, -config.maxForceAbs, config.maxForceAbs);
+
+  const forceY = Math.abs(forceX) * config.verticalCoupling;
+  const windHint =
+    config.maxForceAbs > 0 ? clamp(forceX / config.maxForceAbs, -1, 1) : 0;
+
+  return { forceX, forceY, windHint, direction, magnitudeScale };
+}
+
+/**
+ * Piecewise-constant ±1 direction that holds for ~1/directionSpeed seconds,
+ * then picks a new lattice sign (smoothstep blend only near the cell edge).
+ */
+export function sampleWindDirection(
+  seed: string,
+  elapsedSeconds: number,
+  config: WindEnvironmentConfig = DEFAULT_WIND_ENVIRONMENT_CONFIG,
+): number {
+  const t = elapsedSeconds * config.directionSpeed;
+  const i0 = Math.floor(t);
+  const i1 = i0 + 1;
+  const f = t - i0;
+
+  let d0 = latticeDirection(seed, config.directionLane, i0);
+  let d1 = latticeDirection(seed, config.directionLane, i1);
+
+  // Soft bias: flip a fraction of cells toward baseDirectionX without killing reversals.
+  if (config.directionBias > 0) {
+    d0 = applyDirectionBias(d0, config.baseDirectionX, config.directionBias, seed, i0);
+    d1 = applyDirectionBias(d1, config.baseDirectionX, config.directionBias, seed, i1);
+  }
+
+  // Hold most of the cell, blend only in the last 15% so flips are visible but not harsh.
+  if (f < 0.85) {
+    return d0;
+  }
+  const u = (f - 0.85) / 0.15;
+  const s = u * u * (3 - 2 * u);
+  const blended = d0 + (d1 - d0) * s;
+  // Avoid long zero: snap to nearest sign if almost zero.
+  if (Math.abs(blended) < 0.2) {
+    return d1;
+  }
+  return blended < 0 ? -1 : 1;
+}
+
+function sampleMagnitudeScale(
+  seed: string,
+  elapsedSeconds: number,
+  config: WindEnvironmentConfig,
+): number {
+  const minF = config.minForceFraction;
+  if (config.magnitudeSpeed <= 0) {
+    return (minF + 1) * 0.5;
+  }
+  let unit = sampleSeededUnitNoise1D(
+    seed,
+    config.magnitudeLane,
+    elapsedSeconds * config.magnitudeSpeed,
+  );
   if (config.jitterMix > 0 && config.jitterSpeed > 0) {
-    const jitter = sampleSeededNoise1D(
+    const jitter = sampleSeededUnitNoise1D(
       seed,
       config.jitterLane,
       elapsedSeconds * config.jitterSpeed,
     );
-    signedNoise = primarySigned * (1 - config.jitterMix) + jitter * config.jitterMix;
+    unit = unit * (1 - config.jitterMix) + jitter * config.jitterMix;
   }
-  signedNoise = clamp(signedNoise, -1, 1);
+  unit = clamp(unit, 0, 1);
+  return minF + (1 - minF) * unit;
+}
 
-  // Bias toward baseDirectionX; variation=1 is fully reversible.
-  const v = clamp(config.variation, 0, 1);
-  const signed = clamp(config.baseDirectionX * (1 - v) + signedNoise * v, -1, 1);
+function latticeDirection(seed: string, lane: number, cell: number): number {
+  // Map hash to a clear ±1 (threshold at 0.5 of unit).
+  return seedUnit(`${seed}|dir|${lane}`, cell) < 0.5 ? -1 : 1;
+}
 
-  // Keep a unit in [0,1] for debug / older tests (remap signed noise).
-  const unit =
-    config.noiseSpeed <= 0
-      ? 0.5
-      : sampleSeededUnitNoise1D(
-          seed,
-          config.noiseLane,
-          elapsedSeconds * config.noiseSpeed,
-        );
-
-  let forceX = config.baseForce * signed;
-  forceX = clamp(forceX, -config.maxForceAbs, config.maxForceAbs);
-
-  const forceY = Math.abs(forceX) * config.verticalCoupling;
-
-  const windHint =
-    config.maxForceAbs > 0 ? clamp(forceX / config.maxForceAbs, -1, 1) : 0;
-
-  return { forceX, forceY, windHint, signed, unit };
+function applyDirectionBias(
+  dir: number,
+  base: number,
+  bias: number,
+  seed: string,
+  cell: number,
+): number {
+  if (dir === base) {
+    return dir;
+  }
+  // With probability ≈ bias, force the base direction for this cell.
+  const roll = seedUnit(`${seed}|bias|${cell}`, cell + 17);
+  return roll < bias ? base : dir;
 }
 
 function clamp(value: number, min: number, max: number): number {
