@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { createNeutralPlayerInput } from "@/game/protocol";
 import { initRapier } from "@/game/simulation/rapierInit";
+import { DEFAULT_CRANE_PHYSICS_CONFIG } from "@/game/unloading/cranePhysicsConfig";
 import { DEFAULT_INTERLOCK_CONFIG } from "@/game/unloading/interlockConfig";
+import { DEFAULT_LOCK_CONFIG } from "@/game/unloading/lockConfig";
 import { DEFAULT_UNLOADING_LAYOUT } from "@/game/unloading/layout";
 import { UnloadingScaffoldWorld } from "@/game/unloading/scaffoldWorld";
+import { DEFAULT_WAVE_ENVIRONMENT_CONFIG } from "@/game/unloading/waveEnvironmentConfig";
+import { DEFAULT_WIND_ENVIRONMENT_CONFIG } from "@/game/unloading/windEnvironmentConfig";
 
 describe("UnloadingScaffoldWorld", () => {
   it("exposes trolley, spreader, cask, and cable segments", async () => {
@@ -46,6 +50,63 @@ describe("UnloadingScaffoldWorld", () => {
     // Continuous waves should produce a non-trivial heave hint over a few seconds.
     expect(maxAbsHint).toBeGreaterThan(0.2);
     world.free();
+  });
+
+  it("applies continuous wind so the hanging load sways more than with zero wind", async () => {
+    const rapier = await initRapier();
+    const calmWind = {
+      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
+      baseForce: 0,
+      variation: 0,
+      jitterMix: 0,
+    };
+    const strongWind = {
+      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
+      baseForce: 90,
+      variation: 0.2,
+      maxForceAbs: 150,
+    };
+    const calm = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "wind-sway",
+      DEFAULT_UNLOADING_LAYOUT,
+      DEFAULT_CRANE_PHYSICS_CONFIG,
+      DEFAULT_LOCK_CONFIG,
+      DEFAULT_INTERLOCK_CONFIG,
+      DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+      calmWind,
+    );
+    const windy = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "wind-sway",
+      DEFAULT_UNLOADING_LAYOUT,
+      DEFAULT_CRANE_PHYSICS_CONFIG,
+      DEFAULT_LOCK_CONFIG,
+      DEFAULT_INTERLOCK_CONFIG,
+      DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+      strongWind,
+    );
+
+    let maxCalmSway = 0;
+    let maxWindySway = 0;
+    let maxAbsWindHint = 0;
+    for (let i = 0; i < 300; i += 1) {
+      calm.step();
+      windy.step();
+      maxCalmSway = Math.max(maxCalmSway, calm.buildSnapshot(i, 0).instruments.sway);
+      const windySnap = windy.buildSnapshot(i, 0);
+      maxWindySway = Math.max(maxWindySway, windySnap.instruments.sway);
+      maxAbsWindHint = Math.max(maxAbsWindHint, Math.abs(windySnap.weather.windHint));
+    }
+    expect(maxWindySway).toBeGreaterThan(maxCalmSway);
+    expect(maxAbsWindHint).toBeGreaterThan(0.2);
+    expect(windy.getWindHint()).not.toBe(0);
+    calm.free();
+    windy.free();
   });
 
   it("reflects dispatched stage machine events in snapshots", async () => {
@@ -563,7 +624,25 @@ describe("UnloadingScaffoldWorld", () => {
 
   it("lets the spreader settle near the cable target length below the trolley", async () => {
     const rapier = await initRapier();
-    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "hang-seed");
+    // Isolate cable hang from continuous wind (and keep default waves).
+    const noWind = {
+      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
+      baseForce: 0,
+      variation: 0,
+      jitterMix: 0,
+    };
+    const world = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "hang-seed",
+      DEFAULT_UNLOADING_LAYOUT,
+      DEFAULT_CRANE_PHYSICS_CONFIG,
+      DEFAULT_LOCK_CONFIG,
+      DEFAULT_INTERLOCK_CONFIG,
+      DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+      noWind,
+    );
     for (let i = 0; i < 360; i += 1) {
       world.step();
     }
