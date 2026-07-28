@@ -39,8 +39,8 @@ export interface SeaSurfaceFxConfig {
   foamCount: number;
   /** Specular spark count on crests. */
   sparkCount: number;
-  /** Vertical caustic stripe count. */
-  causticCount: number;
+  /** Horizontal subsurface shimmer streaks (not vertical shafts). */
+  shimmerCount: number;
   /** Spray bursts when |slope| is high. */
   sprayCount: number;
 }
@@ -59,7 +59,7 @@ export const DEFAULT_SEA_SURFACE_FX: SeaSurfaceFxConfig = {
   bodyDepth: 2.4,
   foamCount: 96,
   sparkCount: 48,
-  causticCount: 36,
+  shimmerCount: 40,
   sprayCount: 28,
 };
 
@@ -217,24 +217,30 @@ export function drawSeaSurfaceFx(
   // Base body under the main surface.
   fillSkinUnderPolyline(g, points, deepBottom, 0x0a2840, 0.35);
 
-  // --- Subsurface caustic shafts ---
-  for (let c = 0; c < config.causticCount; c += 1) {
+  // --- Subsurface shimmer (horizontal only — vertical shafts read as ice pillars) ---
+  for (let c = 0; c < config.shimmerCount; c += 1) {
     const seed = c * 17.13 + 3.1;
-    const u = (hash01(seed) + tSeconds * (0.03 + hash01(seed + 1) * 0.04)) % 1;
-    const idx = Math.min(points.length - 1, Math.floor(u * (points.length - 1)));
+    const u = (hash01(seed) + tSeconds * (0.04 + hash01(seed + 1) * 0.05)) % 1;
+    const idx = Math.min(
+      points.length - 2,
+      Math.floor(u * (points.length - 1)),
+    );
     const p = points[idx]!;
-    const sway = Math.sin(tSeconds * 1.4 + seed) * worldSizeToDisplay(0.12);
-    const topY = p.y + worldSizeToDisplay(0.05);
-    const botY = deepBottom - worldSizeToDisplay(0.2);
-    const halfW = worldSizeToDisplay(0.08 + hash01(seed + 2) * 0.18);
-    g.fillStyle(0x7ec8e8, 0.04 + hash01(seed + 3) * 0.05);
+    const depthFrac = 0.15 + hash01(seed + 2) * 0.55;
+    const y =
+      p.y +
+      (deepBottom - p.y) * depthFrac +
+      Math.sin(tSeconds * 1.1 + seed) * worldSizeToDisplay(0.04);
+    const len = worldSizeToDisplay(0.35 + hash01(seed + 3) * 0.9);
+    g.lineStyle(
+      1 + hash01(seed + 4) * 1.5,
+      0x6ab0c8,
+      0.05 + hash01(seed + 5) * 0.08,
+    );
     g.beginPath();
-    g.moveTo(p.x - halfW + sway, topY);
-    g.lineTo(p.x + halfW + sway, topY);
-    g.lineTo(p.x + halfW * 0.35 + sway * 0.5, botY);
-    g.lineTo(p.x - halfW * 0.35 + sway * 0.5, botY);
-    g.closePath();
-    g.fillPath();
+    g.moveTo(p.x - len * 0.5, y);
+    g.lineTo(p.x + len * 0.5, y);
+    g.strokePath();
   }
 
   // --- Secondary ghost surfaces (parallax wave trains) ---
