@@ -22,8 +22,8 @@ describe("windEnvironmentConfig", () => {
     expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.lockedBaseForce).toBeGreaterThan(
       DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce,
     );
-    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.lockedBaseForce).toBeGreaterThan(30);
-    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.lockedBaseForce).toBeLessThan(80);
+    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.lockedBaseForce).toBeGreaterThan(50);
+    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.lockedBaseForce).toBeLessThan(120);
     expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.directionBias).toBe(0);
     expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.oscWeight).toBeGreaterThan(0.4);
   });

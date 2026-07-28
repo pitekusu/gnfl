@@ -58,9 +58,9 @@ export const DEFAULT_WIND_ENVIRONMENT_CONFIG: WindEnvironmentConfig =
     baseDirectionX: -1,
     verticalCoupling: 0.03,
     maxForceAbs: 26,
-    // Post-lock: earlier moderate transport strength.
-    lockedBaseForce: 45,
-    lockedMaxForceAbs: 70,
+    // Post-lock: strong transport push on the hanging load.
+    lockedBaseForce: 80,
+    lockedMaxForceAbs: 120,
   });
 
 export function assertWindEnvironmentConfigInvariants(
