@@ -230,8 +230,8 @@ export class SimulationScene extends Phaser.Scene {
   }
 
   public override update(_time: number, delta: number): void {
-    // Display-only sea motion (independent of physics pause so water never freezes hard).
-    this.seaFxElapsedSeconds += Math.min(0.05, Math.max(0, delta / 1000));
+    // Display-only rich sea (independent of physics pause). Cap only huge hitches.
+    this.seaFxElapsedSeconds += Math.min(0.08, Math.max(0, delta / 1000));
     if (this.seaSurfaceGraphics) {
       drawSeaSurfaceFx(this.seaSurfaceGraphics, this.seaFxElapsedSeconds);
     }
