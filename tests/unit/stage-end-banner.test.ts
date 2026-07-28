@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createZeroUnloadingMetrics } from "@shared/contracts/unloadingMetrics";
 import { scoreUnloading } from "@shared/scoring/scoreUnloading";
-import { formatStageEndBanner } from "@/game/unloading/stageEndBanner";
+import {
+  formatStageEndBanner,
+  formatStageEndBannerFromPhase,
+} from "@/game/unloading/stageEndBanner";
 import type { StageResult } from "@/game/protocol";
 
 describe("formatStageEndBanner", () => {
@@ -38,5 +41,15 @@ describe("formatStageEndBanner", () => {
     expect(text).toContain("完了");
     expect(text).toContain(scoring.grade);
     expect(text).toContain(scoring.score.toLocaleString("ja-JP"));
+  });
+});
+
+describe("formatStageEndBannerFromPhase", () => {
+  it("mirrors HUD-visible abort and complete phases", () => {
+    expect(formatStageEndBannerFromPhase("SAFE_ABORTED", "E_STOP")).toBe(
+      "安全中止 · E_STOP · スコア登録不可",
+    );
+    expect(formatStageEndBannerFromPhase("COMPLETED", null)).toBe("完了");
+    expect(formatStageEndBannerFromPhase("READY", null)).toBeNull();
   });
 });

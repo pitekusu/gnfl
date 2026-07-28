@@ -208,6 +208,9 @@ button {
 
 .phaser-host canvas {
   display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   width: 100% !important;
   height: 100% !important;
 }
@@ -230,7 +233,7 @@ button {
   position: absolute;
   top: 0.75rem;
   left: 0.75rem;
-  z-index: 5;
+  z-index: 10;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -305,21 +308,21 @@ button {
   box-shadow: 0 0 0 1px color-mix(in srgb, #000 40%, transparent);
 }
 
-/* Terminal stage result bridge (full result screen is Phase 5 C9). */
+/* Terminal banner: driven by HUD phase (same path as 工程 row). */
 .stage-end-banner {
   position: absolute;
   left: 50%;
-  top: 4.5rem;
-  z-index: 20;
-  transform: translateX(-50%);
+  top: 50%;
+  z-index: 30;
+  transform: translate(-50%, -50%);
   max-width: min(40rem, calc(100% - 1.5rem));
-  padding: 0.85rem 1.35rem;
+  padding: 1rem 1.5rem;
   border-radius: 0.55rem;
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   font-weight: 700;
   text-align: center;
   pointer-events: none;
-  box-shadow: 0 6px 24px color-mix(in srgb, #000 55%, transparent);
+  box-shadow: 0 8px 28px color-mix(in srgb, #000 60%, transparent);
 }
 
 .stage-end-banner-complete {

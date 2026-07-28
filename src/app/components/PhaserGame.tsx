@@ -6,7 +6,10 @@ import {
   formatStagePhaseHud,
   isLockEngagedStagePhase,
 } from "@/game/unloading/stagePhaseLabels";
-import { formatStageEndBanner } from "@/game/unloading/stageEndBanner";
+import {
+  formatStageEndBanner,
+  formatStageEndBannerFromPhase,
+} from "@/game/unloading/stageEndBanner";
 import { formatWaveHud, formatWindHud } from "@/game/unloading/weatherHud";
 
 /**
@@ -27,7 +30,7 @@ export function PhaserGame() {
   const [locked, setLocked] = useState(false);
   const [windHint, setWindHint] = useState(0);
   const [waveHint, setWaveHint] = useState(0);
-  /** Terminal result from worker COMPLETED / SAFE_ABORT (C8 bridge). */
+  /** Full terminal payload when worker/stageEnd arrives (score/grade). */
   const [stageResult, setStageResult] = useState<StageResult | null>(null);
 
   useEffect(() => {
@@ -118,6 +121,12 @@ export function PhaserGame() {
     };
   }, []);
 
+  // Banner must follow HUD phase (proven path). Full StageResult upgrades the text.
+  const phaseBanner = formatStageEndBannerFromPhase(stagePhase, abortReason);
+  const bannerText = stageResult ? formatStageEndBanner(stageResult) : phaseBanner;
+  const bannerVisible = bannerText != null;
+  const bannerAborted = stageResult?.aborted === true || stagePhase === "SAFE_ABORTED";
+
   return (
     <div className="phaser-host" ref={hostRef} data-testid="phaser-host">
       <div className="game-hud" data-testid="game-hud">
@@ -177,17 +186,17 @@ export function PhaserGame() {
           緩速状態
         </div>
       ) : null}
-      {stageResult ? (
+      {bannerVisible ? (
         <div
           className={
-            stageResult.aborted
+            bannerAborted
               ? "stage-end-banner stage-end-banner-abort"
               : "stage-end-banner stage-end-banner-complete"
           }
           data-testid="stage-end-banner"
           role="status"
         >
-          {formatStageEndBanner(stageResult)}
+          {bannerText}
         </div>
       ) : null}
       <div className="phaser-status" data-testid="phaser-status">
