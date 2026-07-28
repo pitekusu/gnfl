@@ -11,10 +11,13 @@ function mockGraphics() {
     clear: vi.fn(),
     fillStyle: vi.fn(),
     fillRect: vi.fn(),
+    strokeRect: vi.fn(),
     lineStyle: vi.fn(),
     beginPath: vi.fn(),
     moveTo: vi.fn(),
     lineTo: vi.fn(),
+    closePath: vi.fn(),
+    fillPath: vi.fn(),
     strokePath: vi.fn(),
   };
 }

@@ -13,6 +13,12 @@ export const unloadingLayoutSchema = z.object({
     centerY: z.number(),
     halfWidth: z.number().positive(),
     halfHeight: z.number().positive(),
+    /**
+     * Water-side vertical bumper on the quay body (local).
+     * Must be drawn in scenery — physics-only boxes feel like ghost hitboxes.
+     */
+    bumperHalfWidth: z.number().positive(),
+    bumperHalfHeight: z.number().positive(),
   }),
   ship: z.object({
     /** Rest pose of ship kinematic body (before wave motion). */
@@ -22,6 +28,8 @@ export const unloadingLayoutSchema = z.object({
     halfHeight: z.number().positive(),
     /** Hold floor relative to ship center. */
     holdFloorOffsetY: z.number().positive(),
+    /** Half-thickness of the hold floor slab collider (also drawn). */
+    holdFloorHalfHeight: z.number().positive(),
     holdHalfWidth: z.number().positive(),
     holdWallHalfThickness: z.number().positive(),
     holdWallHeight: z.number().positive(),
@@ -50,10 +58,16 @@ export const unloadingLayoutSchema = z.object({
     spawnY: z.number(),
   }),
   cradle: z.object({
+    /** Pad center (body origin). */
     centerX: z.number(),
     centerY: z.number(),
+    /** Horizontal half-extent of the pad. */
     halfWidth: z.number().positive(),
+    /** Vertical half-extent of the pad slab. */
     halfHeight: z.number().positive(),
+    /** U-jaw posts on left/right of the pad (same body). */
+    postHalfWidth: z.number().positive(),
+    postHalfHeight: z.number().positive(),
   }),
 });
 
@@ -74,6 +88,8 @@ export const DEFAULT_UNLOADING_LAYOUT: UnloadingLayout = unloadingLayoutSchema.p
     centerY: 6.8,
     halfWidth: 8,
     halfHeight: 0.45,
+    bumperHalfWidth: 0.25,
+    bumperHalfHeight: 0.9,
   },
   ship: {
     // Hull from x≈-14 to x≈-5 — water gap ≥1.5 before quay left edge.
@@ -82,6 +98,7 @@ export const DEFAULT_UNLOADING_LAYOUT: UnloadingLayout = unloadingLayoutSchema.p
     halfWidth: 4.5,
     halfHeight: 2.1,
     holdFloorOffsetY: 1.2,
+    holdFloorHalfHeight: 0.15,
     holdHalfWidth: 2.1,
     holdWallHalfThickness: 0.2,
     holdWallHeight: 2.5,
@@ -107,10 +124,13 @@ export const DEFAULT_UNLOADING_LAYOUT: UnloadingLayout = unloadingLayoutSchema.p
     spawnY: 6.2,
   },
   cradle: {
+    // Pad sits on the quay deck top (centerY = deckTop + padHalfHeight).
     centerX: 9,
-    centerY: 6.1,
+    centerY: 6.8 - 0.45 + 0.2,
     halfWidth: 1.5,
-    halfHeight: 0.35,
+    halfHeight: 0.2,
+    postHalfWidth: 0.22,
+    postHalfHeight: 0.55,
   },
 });
 

@@ -135,12 +135,15 @@ export class UnloadingScaffoldWorld {
       quayBody,
     );
 
-    const bumperHalfHeight = 0.9;
+    // Water-side bumper (drawn in scenery — must match these local offsets).
     world.createCollider(
-      rapier.ColliderDesc.cuboid(0.25, bumperHalfHeight)
+      rapier.ColliderDesc.cuboid(
+        layout.quay.bumperHalfWidth,
+        layout.quay.bumperHalfHeight,
+      )
         .setTranslation(
-          -layout.quay.halfWidth + 0.25,
-          -layout.quay.halfHeight - bumperHalfHeight,
+          -layout.quay.halfWidth + layout.quay.bumperHalfWidth,
+          -layout.quay.halfHeight - layout.quay.bumperHalfHeight,
         )
         .setFriction(0.6),
       quayBody,
@@ -152,11 +155,34 @@ export class UnloadingScaffoldWorld {
         layout.cradle.centerY,
       ),
     );
+    // U-cradle: pad + left/right posts (all must be drawn to match).
     world.createCollider(
       rapier.ColliderDesc.cuboid(
         layout.cradle.halfWidth,
         layout.cradle.halfHeight,
       ).setFriction(0.95),
+      cradleBody,
+    );
+    const postLocalY =
+      -layout.cradle.halfHeight - layout.cradle.postHalfHeight;
+    const postInsetX =
+      layout.cradle.halfWidth - layout.cradle.postHalfWidth;
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(
+        layout.cradle.postHalfWidth,
+        layout.cradle.postHalfHeight,
+      )
+        .setTranslation(-postInsetX, postLocalY)
+        .setFriction(0.95),
+      cradleBody,
+    );
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(
+        layout.cradle.postHalfWidth,
+        layout.cradle.postHalfHeight,
+      )
+        .setTranslation(postInsetX, postLocalY)
+        .setFriction(0.95),
       cradleBody,
     );
 
@@ -176,7 +202,10 @@ export class UnloadingScaffoldWorld {
 
     const holdFloorY = layout.ship.holdFloorOffsetY;
     world.createCollider(
-      rapier.ColliderDesc.cuboid(layout.ship.holdHalfWidth, 0.15)
+      rapier.ColliderDesc.cuboid(
+        layout.ship.holdHalfWidth,
+        layout.ship.holdFloorHalfHeight,
+      )
         .setTranslation(0, holdFloorY)
         .setFriction(0.9),
       shipBody,
