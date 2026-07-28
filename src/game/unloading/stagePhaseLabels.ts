@@ -24,3 +24,20 @@ export function formatStagePhaseHud(phase: string | null | undefined): string {
   }
   return phase;
 }
+
+/** Phases where the spreader–cask joint should still be engaged (HUD ロック: 中). */
+const LOCK_ENGAGED_PHASES = new Set<StagePhase>([
+  "LOCKED",
+  "LIFTING",
+  "CLEAR_OF_HOLD",
+  "TRAVERSING",
+  "LANDING",
+  "SEATED",
+]);
+
+export function isLockEngagedStagePhase(phase: string | null | undefined): boolean {
+  if (phase == null || phase === "") {
+    return false;
+  }
+  return LOCK_ENGAGED_PHASES.has(phase as StagePhase);
+}

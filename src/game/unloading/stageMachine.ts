@@ -14,6 +14,8 @@ export type StageMachineEvent =
   | { type: "BEGIN_TRAVERSE" }
   | { type: "OVER_CRADLE" }
   | { type: "SEAT_STABLE" }
+  /** Cask left the cradle pad after SEATED (e.g. hoisted up again). */
+  | { type: "SEAT_LOST" }
   | { type: "UNLOCK_CONFIRMED" }
   | { type: "COMPLETE_CONFIRMED" }
   | { type: "SAFE_ABORT"; reason: string };
@@ -137,9 +139,15 @@ function nextPhase(phase: StagePhase, event: StageMachineEvent): StagePhase | nu
       return null;
 
     case "SEATED":
+      // Lifted off the pad again while still carrying — re-enter landing/traverse.
+      if (event.type === "SEAT_LOST") {
+        return "LANDING";
+      }
+      if (event.type === "BEGIN_TRAVERSE") {
+        return "TRAVERSING";
+      }
       if (event.type === "UNLOCK_CONFIRMED") {
         // Stay SEATED until explicit complete; unlock is recorded by physics.
-        // COMPLETE_CONFIRMED advances.
         return null;
       }
       if (event.type === "COMPLETE_CONFIRMED") {

@@ -294,6 +294,21 @@ describe("UnloadingScaffoldWorld", () => {
       }
     }
     expect(world.getStagePhase()).toBe("SEATED");
+    expect(world.buildSnapshot(1, 0).instruments.locked).toBe(true);
+
+    // Re-hoist off the pad → leave SEATED back to LANDING.
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      hoistAxis: 1,
+    });
+    for (let i = 0; i < 180; i += 1) {
+      world.step();
+      if (world.getStagePhase() === "LANDING") {
+        break;
+      }
+    }
+    expect(world.getStagePhase()).toBe("LANDING");
+    expect(world.buildSnapshot(2, 0).instruments.locked).toBe(true);
     world.free();
   });
 

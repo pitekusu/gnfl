@@ -95,4 +95,18 @@ describe("reduceStage", () => {
     state = reduceStage(state, { type: "BEGIN_TRAVERSE" }).state;
     expect(state.phase).toBe("TRAVERSING");
   });
+
+  it("returns from SEATED to LANDING when seat is lost", () => {
+    let state = applyStageEvents(createInitialStageMachineState(), [
+      { type: "ALIGNMENT_OK" },
+      { type: "LOCK_SUCCESS" },
+      { type: "BREAKOUT_LIFT" },
+      { type: "CLEARED_HOLD" },
+      { type: "OVER_CRADLE" },
+      { type: "SEAT_STABLE" },
+    ]);
+    expect(state.phase).toBe("SEATED");
+    state = reduceStage(state, { type: "SEAT_LOST" }).state;
+    expect(state.phase).toBe("LANDING");
+  });
 });

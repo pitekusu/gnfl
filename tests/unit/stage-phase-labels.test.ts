@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { formatStagePhaseHud } from "@/game/unloading/stagePhaseLabels";
+import {
+  formatStagePhaseHud,
+  isLockEngagedStagePhase,
+} from "@/game/unloading/stagePhaseLabels";
 
 describe("formatStagePhaseHud", () => {
   it("formats known phases with Japanese labels", () => {
@@ -11,5 +14,13 @@ describe("formatStagePhaseHud", () => {
     expect(formatStagePhaseHud(undefined)).toBe("準備 (READY)");
     expect(formatStagePhaseHud("")).toBe("準備 (READY)");
     expect(formatStagePhaseHud(null)).toBe("準備 (READY)");
+  });
+});
+
+describe("isLockEngagedStagePhase", () => {
+  it("is true from LOCKED through SEATED", () => {
+    expect(isLockEngagedStagePhase("LOCKED")).toBe(true);
+    expect(isLockEngagedStagePhase("SEATED")).toBe(true);
+    expect(isLockEngagedStagePhase("READY")).toBe(false);
   });
 });

@@ -87,6 +87,8 @@ export class UnloadingScaffoldWorld {
   private stage: StageMachineState = createInitialStageMachineState();
   private alignStableTicks = 0;
   private lockReady = false;
+  /** Explicit lock flag for HUD/snapshots (do not rely only on joint.isValid()). */
+  private caskLocked = false;
   private lockJoint: RAPIER.ImpulseJoint | null = null;
   /** Cask world Y captured when the lock joint engaged (for breakout lift). */
   private lockEngageCaskY: number | null = null;
@@ -367,7 +369,7 @@ export class UnloadingScaffoldWorld {
 
   /** True after Space engaged the spreader–cask fixed joint. */
   public isLockJointActive(): boolean {
-    return this.lockJoint !== null && this.lockJoint.isValid();
+    return this.caskLocked;
   }
 
   /**
@@ -605,6 +607,7 @@ export class UnloadingScaffoldWorld {
     }
 
     this.createLockJoint();
+    this.caskLocked = true;
     this.lockEngageCaskY = this.caskBody.translation().y;
     this.dispatchStageEvent({ type: "LOCK_SUCCESS" });
     this.lockReady = false;
@@ -685,17 +688,50 @@ export class UnloadingScaffoldWorld {
   }
 
   /**
-   * While LANDING, require stable cradle seating for seatStableTicks → SEATED.
+   * LANDING → SEATED after stable pad contact;
+   * SEATED → LANDING / TRAVERSING if the load is lifted or moved off the cradle.
    */
   private updateSeatingPhase(): void {
+    if (this.stage.phase === "SEATED") {
+      this.updateSeatedLeaveChecks();
+      return;
+    }
+
     if (this.stage.phase !== "LANDING") {
       this.seatStableTicks = 0;
       return;
     }
 
+    const seating = this.evaluateCurrentCradleSeating();
+    if (seating.ok) {
+      this.seatStableTicks += 1;
+    } else {
+      this.seatStableTicks = 0;
+    }
+
+    if (this.seatStableTicks >= this.interlock.seatStableTicks) {
+      this.dispatchStageEvent({ type: "SEAT_STABLE" });
+      this.seatStableTicks = 0;
+    }
+  }
+
+  private updateSeatedLeaveChecks(): void {
+    const overCradle = isOverCradleZone(this.trolleyX, this.layout);
+    if (!overCradle) {
+      this.dispatchStageEvent({ type: "BEGIN_TRAVERSE" });
+      return;
+    }
+    const seating = this.evaluateCurrentCradleSeating();
+    // Clearly floating above the pad again (re-hoist) → back to LANDING.
+    if (seating.gapAboveCradle > this.interlock.seatMaxVerticalError) {
+      this.dispatchStageEvent({ type: "SEAT_LOST" });
+    }
+  }
+
+  private evaluateCurrentCradleSeating() {
     const caskT = this.caskBody.translation();
     const caskV = this.caskBody.linvel();
-    const seating = evaluateCradleSeating({
+    return evaluateCradleSeating({
       cask: {
         x: caskT.x,
         y: caskT.y,
@@ -708,17 +744,6 @@ export class UnloadingScaffoldWorld {
       cradleTopY: cradleTopY(this.layout),
       interlock: this.interlock,
     });
-
-    if (seating.ok) {
-      this.seatStableTicks += 1;
-    } else {
-      this.seatStableTicks = 0;
-    }
-
-    if (this.seatStableTicks >= this.interlock.seatStableTicks) {
-      this.dispatchStageEvent({ type: "SEAT_STABLE" });
-      this.seatStableTicks = 0;
-    }
   }
 
   private createLockJoint(): void {
@@ -888,7 +913,7 @@ export class UnloadingScaffoldWorld {
         // Displacement-dominant so the HUD moves when the load swings.
         sway: lateralSway + speedSway * 0.25,
         lockReady: this.lockReady,
-        locked: this.isLockJointActive(),
+        locked: this.caskLocked,
       },
       weather: {
         windHint: 0,
@@ -902,6 +927,7 @@ export class UnloadingScaffoldWorld {
       this.world.removeImpulseJoint(this.lockJoint, true);
       this.lockJoint = null;
     }
+    this.caskLocked = false;
     this.world.free();
   }
 }

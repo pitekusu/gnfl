@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type Phaser from "phaser";
 import { createGame } from "@/game/phaser/createGame";
-import { formatStagePhaseHud } from "@/game/unloading/stagePhaseLabels";
+import {
+  formatStagePhaseHud,
+  isLockEngagedStagePhase,
+} from "@/game/unloading/stagePhaseLabels";
 
 /**
  * Hosts Phaser. Only low-frequency simulation status crosses into React state.
@@ -99,7 +102,7 @@ export function PhaserGame() {
           <span className="game-hud-label">ロック</span>
           <span
             className={
-              locked
+              locked || isLockEngagedStagePhase(stagePhase)
                 ? "game-hud-value game-hud-lock-active"
                 : lockReady
                   ? "game-hud-value game-hud-lock-ready"
@@ -107,7 +110,11 @@ export function PhaserGame() {
             }
             data-testid="hud-lock-ready"
           >
-            {locked ? "中" : lockReady ? "可" : "不可"}
+            {locked || isLockEngagedStagePhase(stagePhase)
+              ? "中"
+              : lockReady
+                ? "可"
+                : "不可"}
           </span>
         </div>
         <div className="game-hud-row">
