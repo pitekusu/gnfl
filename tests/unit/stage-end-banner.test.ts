@@ -37,6 +37,6 @@ describe("formatStageEndBanner", () => {
     const text = formatStageEndBanner(result);
     expect(text).toContain("完了");
     expect(text).toContain(scoring.grade);
-    expect(text).toContain(String(scoring.score));
+    expect(text).toContain(scoring.score.toLocaleString("ja-JP"));
   });
 });
