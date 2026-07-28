@@ -20,7 +20,14 @@ import {
   DEFAULT_UNLOADING_LAYOUT,
   type UnloadingLayout,
 } from "@/game/unloading/layout";
-import { integrateCableTargetLength } from "@/game/unloading/hoistMotion";
+import {
+  applyUnlockedHoistUpInterlock,
+  integrateCableTargetLength,
+} from "@/game/unloading/hoistMotion";
+import {
+  DEFAULT_INTERLOCK_CONFIG,
+  type InterlockConfig,
+} from "@/game/unloading/interlockConfig";
 import { DEFAULT_LOCK_CONFIG, type LockConfig } from "@/game/unloading/lockConfig";
 import { evaluateLockAlignment } from "@/game/unloading/lockAlignment";
 import { sampleBaseShipMotion } from "@/game/unloading/shipMotion";
@@ -55,6 +62,7 @@ export class UnloadingScaffoldWorld {
   private readonly layout: UnloadingLayout;
   private readonly physics: CranePhysicsConfig;
   private readonly lockConfig: LockConfig;
+  private readonly interlock: InterlockConfig;
   private readonly physicsDtSeconds: number;
   private readonly physicsHz: number;
   private readonly seed: string;
@@ -71,6 +79,8 @@ export class UnloadingScaffoldWorld {
   private alignStableTicks = 0;
   private lockReady = false;
   private lockJoint: RAPIER.ImpulseJoint | null = null;
+  /** Cask world Y captured when the lock joint engaged (for breakout lift). */
+  private lockEngageCaskY: number | null = null;
 
   private constructor(
     rapier: RapierModule,
@@ -84,6 +94,7 @@ export class UnloadingScaffoldWorld {
     layout: UnloadingLayout,
     physics: CranePhysicsConfig,
     lockConfig: LockConfig,
+    interlock: InterlockConfig,
     physicsDtSeconds: number,
     physicsHz: number,
     seed: string,
@@ -101,6 +112,7 @@ export class UnloadingScaffoldWorld {
     this.layout = layout;
     this.physics = physics;
     this.lockConfig = lockConfig;
+    this.interlock = interlock;
     this.physicsDtSeconds = physicsDtSeconds;
     this.physicsHz = physicsHz;
     this.seed = seed;
@@ -116,6 +128,7 @@ export class UnloadingScaffoldWorld {
     layout: UnloadingLayout = DEFAULT_UNLOADING_LAYOUT,
     physics: CranePhysicsConfig = DEFAULT_CRANE_PHYSICS_CONFIG,
     lockConfig: LockConfig = DEFAULT_LOCK_CONFIG,
+    interlock: InterlockConfig = DEFAULT_INTERLOCK_CONFIG,
   ): UnloadingScaffoldWorld {
     const physicsDtSeconds = 1 / physicsHz;
     const world = new rapier.World({ x: 0, y: gravityY });
@@ -297,6 +310,7 @@ export class UnloadingScaffoldWorld {
       layout,
       physics,
       lockConfig,
+      interlock,
       physicsDtSeconds,
       physicsHz,
       seed,
@@ -415,9 +429,15 @@ export class UnloadingScaffoldWorld {
     this.trolleyBody.setNextKinematicRotation(0);
 
     // Hoist: change spring rest length (positive axis shortens = lift).
+    // Ground-break interlock blocks / scales hoist-up until the cask is locked.
+    const hoistAxis = applyUnlockedHoistUpInterlock(
+      this.control.hoistAxis,
+      this.isLockJointActive(),
+      this.interlock.unlockedHoistUpSpeedScale,
+    );
     this.cableTargetLength = integrateCableTargetLength({
       targetLength: this.cableTargetLength,
-      axis: this.control.hoistAxis,
+      axis: hoistAxis,
       dtSeconds: this.physicsDtSeconds,
       maxSpeed: this.physics.hoist.maxSpeed,
       axisDeadzone: this.physics.trolley.axisDeadzone,
@@ -447,6 +467,7 @@ export class UnloadingScaffoldWorld {
 
     this.updateLockAlignmentAndPhase();
     this.tryEngageLockFromInput();
+    this.updateBreakoutLiftPhase();
   }
 
   private updateLockAlignmentAndPhase(): void {
@@ -524,9 +545,28 @@ export class UnloadingScaffoldWorld {
     }
 
     this.createLockJoint();
+    this.lockEngageCaskY = this.caskBody.translation().y;
     this.dispatchStageEvent({ type: "LOCK_SUCCESS" });
     this.lockReady = false;
     this.alignStableTicks = 0;
+  }
+
+  /**
+   * After lock, hoist-up that lifts the cask off its engage height → LIFTING.
+   */
+  private updateBreakoutLiftPhase(): void {
+    if (this.stage.phase !== "LOCKED") {
+      return;
+    }
+    if (this.lockEngageCaskY === null) {
+      return;
+    }
+    const caskY = this.caskBody.translation().y;
+    // Y-down: lift decreases world Y.
+    const lifted = this.lockEngageCaskY - caskY;
+    if (lifted >= this.interlock.breakoutLiftDistance) {
+      this.dispatchStageEvent({ type: "BREAKOUT_LIFT" });
+    }
   }
 
   private createLockJoint(): void {

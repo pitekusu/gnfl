@@ -11,6 +11,11 @@ export const interlockConfigSchema = z.object({
    */
   unlockedHoistUpSpeedScale: z.number().nonnegative().max(1),
   /**
+   * How far the locked cask must rise (world Y decrease) after lock
+   * before BREAKOUT_LIFT advances LOCKED → LIFTING.
+   */
+  breakoutLiftDistance: z.number().positive(),
+  /**
    * While cask bottom is below clear-of-hold height, trolley max speed scale.
    * Full speed only after CLEAR_OF_HOLD.
    */
@@ -51,6 +56,7 @@ export type InterlockConfig = z.infer<typeof interlockConfigSchema>;
 
 export const DEFAULT_INTERLOCK_CONFIG: InterlockConfig = interlockConfigSchema.parse({
   unlockedHoistUpSpeedScale: 0,
+  breakoutLiftDistance: 0.28,
   lowClearanceTrolleySpeedScale: 0.22,
   clearOfHoldMargin: 0.4,
   maxHoistTension: 720,

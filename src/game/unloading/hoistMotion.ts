@@ -37,3 +37,18 @@ export function integrateCableTargetLength(params: HoistIntegrateParams): number
     params.maxCableLength,
   );
 }
+
+/**
+ * Ground-break interlock: scale hoist-up (positive axis) when the load is not locked.
+ * Lowering (negative axis) is always allowed so the spreader can be seated onto the cask.
+ */
+export function applyUnlockedHoistUpInterlock(
+  axis: number,
+  locked: boolean,
+  unlockedHoistUpSpeedScale: number,
+): number {
+  if (locked || axis <= 0) {
+    return axis;
+  }
+  return axis * unlockedHoistUpSpeedScale;
+}

@@ -106,7 +106,34 @@ describe("UnloadingScaffoldWorld", () => {
     world.free();
   });
 
-  it("lifts the cask with the spreader after lock", async () => {
+  it("blocks hoist-up before lock (ground-break interlock)", async () => {
+    const rapier = await initRapier();
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "interlock-seed");
+    for (let i = 0; i < 60; i += 1) {
+      world.step();
+    }
+    const lengthBefore = world.getCableTargetLength();
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      hoistAxis: 1,
+    });
+    for (let i = 0; i < 120; i += 1) {
+      world.step();
+    }
+    expect(world.getCableTargetLength()).toBeCloseTo(lengthBefore, 5);
+    // Lowering remains available for seating onto the cask.
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      hoistAxis: -1,
+    });
+    for (let i = 0; i < 60; i += 1) {
+      world.step();
+    }
+    expect(world.getCableTargetLength()).toBeGreaterThan(lengthBefore + 0.2);
+    world.free();
+  });
+
+  it("lifts the cask with the spreader after lock and enters LIFTING", async () => {
     const rapier = await initRapier();
     const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "lift-seed");
     for (let i = 0; i < 60; i += 1) {
@@ -134,6 +161,7 @@ describe("UnloadingScaffoldWorld", () => {
     const caskAfter = world.getCaskTranslation();
     // Y-down: lifting moves the locked cask toward the rail (smaller y).
     expect(caskAfter.y).toBeLessThan(caskBefore.y - 0.3);
+    expect(world.getStagePhase()).toBe("LIFTING");
     world.free();
   });
 
@@ -215,16 +243,17 @@ describe("UnloadingScaffoldWorld", () => {
     const normalWorld = UnloadingScaffoldWorld.create(rapier, 18, 120, "fine-a");
     const fineWorld = UnloadingScaffoldWorld.create(rapier, 18, 120, "fine-b");
 
+    // Hoist-down (negative) — hoist-up is blocked until lock by interlock.
     normalWorld.setControlInput({
       ...createNeutralPlayerInput(),
       trolleyAxis: 1,
-      hoistAxis: 1,
+      hoistAxis: -1,
       fineMode: false,
     });
     fineWorld.setControlInput({
       ...createNeutralPlayerInput(),
       trolleyAxis: 1,
-      hoistAxis: 1,
+      hoistAxis: -1,
       fineMode: true,
     });
 
@@ -240,8 +269,8 @@ describe("UnloadingScaffoldWorld", () => {
 
     const normalTrolleyDelta = normalWorld.getTrolleyX() - normalStartX;
     const fineTrolleyDelta = fineWorld.getTrolleyX() - fineStartX;
-    const normalHoistDelta = normalStartLen - normalWorld.getCableTargetLength();
-    const fineHoistDelta = fineStartLen - fineWorld.getCableTargetLength();
+    const normalHoistDelta = normalWorld.getCableTargetLength() - normalStartLen;
+    const fineHoistDelta = fineWorld.getCableTargetLength() - fineStartLen;
 
     expect(fineTrolleyDelta).toBeLessThan(normalTrolleyDelta * 0.5);
     expect(fineHoistDelta).toBeLessThan(normalHoistDelta * 0.5);
@@ -250,15 +279,25 @@ describe("UnloadingScaffoldWorld", () => {
     fineWorld.free();
   });
 
-  it("raises the spreader when hoist axis is positive", async () => {
+  it("raises the locked load when hoist axis is positive", async () => {
     const rapier = await initRapier();
     const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "hoist-seed");
-    for (let i = 0; i < 180; i += 1) {
+    for (let i = 0; i < 60; i += 1) {
       world.step();
     }
+    for (let i = 0; i < 24; i += 1) {
+      world.snapSpreaderToCaskLockPose();
+      world.step();
+    }
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      lockPressed: true,
+    });
+    world.step();
+    expect(world.isLockJointActive()).toBe(true);
+
     const before = world.getSpreaderTranslation();
     const lengthBefore = world.getCableTargetLength();
-
     world.setControlInput({
       ...createNeutralPlayerInput(),
       hoistAxis: 1,
