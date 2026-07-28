@@ -10,15 +10,27 @@ import {
   formatStageEndBanner,
   formatStageEndBannerFromPhase,
 } from "@/game/unloading/stageEndBanner";
+import {
+  syntheticAbortStageResult,
+  syntheticCompleteStageResult,
+} from "@/game/unloading/syntheticStageResult";
 import { formatWaveHud, formatWindHud } from "@/game/unloading/weatherHud";
+
+export interface PhaserGameProps {
+  /** Called once when the stage ends (complete or abort). */
+  onStageEnd?: (result: StageResult) => void;
+}
 
 /**
  * Hosts Phaser. Only low-frequency simulation status crosses into React state.
  * Snapshot positions never enter React.
  */
-export function PhaserGame() {
+export function PhaserGame({ onStageEnd }: PhaserGameProps = {}) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
+  const onStageEndRef = useRef(onStageEnd);
+  onStageEndRef.current = onStageEnd;
+  const stageEndReportedRef = useRef(false);
   const [phaserStatus, setPhaserStatus] = useState("initializing");
   const [workerStatus, setWorkerStatus] = useState("idle");
   const [fineMode, setFineMode] = useState(false);
@@ -120,6 +132,32 @@ export function PhaserGame() {
       game?.destroy(true);
     };
   }, []);
+
+  // Notify parent when the stage ends. Full StageResult may arrive after phase HUD.
+  useEffect(() => {
+    const notify = onStageEndRef.current;
+    if (!notify) {
+      return;
+    }
+    if (stageResult) {
+      stageEndReportedRef.current = true;
+      notify(stageResult);
+      return;
+    }
+    if (stageEndReportedRef.current) {
+      return;
+    }
+    if (stagePhase === "SAFE_ABORTED") {
+      stageEndReportedRef.current = true;
+      notify(syntheticAbortStageResult(abortReason));
+      return;
+    }
+    if (stagePhase === "COMPLETED") {
+      // Fallback if worker result never arrives; scoring may be null.
+      stageEndReportedRef.current = true;
+      notify(syntheticCompleteStageResult());
+    }
+  }, [stagePhase, stageResult, abortReason]);
 
   // Banner must follow HUD phase (proven path). Full StageResult upgrades the text.
   const phaseBanner = formatStageEndBannerFromPhase(stagePhase, abortReason);
