@@ -114,6 +114,7 @@ export function interpolateSnapshots(
     instruments: {
       cableLoad: lerp(previous.instruments.cableLoad, current.instruments.cableLoad, t),
       sway: lerp(previous.instruments.sway, current.instruments.sway, t),
+      lockReady: current.instruments.lockReady,
     },
     weather: {
       windHint: lerp(previous.weather.windHint, current.weather.windHint, t),

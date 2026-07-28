@@ -16,6 +16,7 @@ export function PhaserGame() {
   const [sway, setSway] = useState(0);
   const [cableLoad, setCableLoad] = useState(0);
   const [stagePhase, setStagePhase] = useState("READY");
+  const [lockReady, setLockReady] = useState(false);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -44,6 +45,7 @@ export function PhaserGame() {
             if (payload.kind === "hud") {
               setSway(payload.sway);
               setCableLoad(payload.cableLoad);
+              setLockReady(Boolean(payload.lockReady));
               // Never allow undefined/empty to wipe the phase row.
               setStagePhase(
                 payload.stagePhase != null && payload.stagePhase !== ""
@@ -89,6 +91,19 @@ export function PhaserGame() {
           <span className="game-hud-label">工程</span>
           <span className="game-hud-value game-hud-phase" data-testid="hud-stage-phase">
             {formatStagePhaseHud(stagePhase)}
+          </span>
+        </div>
+        <div className="game-hud-row">
+          <span className="game-hud-label">ロック</span>
+          <span
+            className={
+              lockReady
+                ? "game-hud-value game-hud-lock-ready"
+                : "game-hud-value game-hud-lock-wait"
+            }
+            data-testid="hud-lock-ready"
+          >
+            {lockReady ? "可" : "不可"}
           </span>
         </div>
         <div className="game-hud-row">

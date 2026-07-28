@@ -21,6 +21,8 @@ import {
   type UnloadingLayout,
 } from "@/game/unloading/layout";
 import { integrateCableTargetLength } from "@/game/unloading/hoistMotion";
+import { DEFAULT_LOCK_CONFIG, type LockConfig } from "@/game/unloading/lockConfig";
+import { evaluateLockAlignment } from "@/game/unloading/lockAlignment";
 import { sampleBaseShipMotion } from "@/game/unloading/shipMotion";
 import {
   createInitialStageMachineState,
@@ -51,6 +53,7 @@ export class UnloadingScaffoldWorld {
   private readonly caskBody: RAPIER.RigidBody;
   private readonly layout: UnloadingLayout;
   private readonly physics: CranePhysicsConfig;
+  private readonly lockConfig: LockConfig;
   private readonly physicsDtSeconds: number;
   private readonly physicsHz: number;
   private readonly seed: string;
@@ -64,6 +67,8 @@ export class UnloadingScaffoldWorld {
   private lastCables: CableRenderState[] = [];
   private control: PlayerInput = createNeutralPlayerInput();
   private stage: StageMachineState = createInitialStageMachineState();
+  private alignStableTicks = 0;
+  private lockReady = false;
 
   private constructor(
     world: RAPIER.World,
@@ -75,6 +80,7 @@ export class UnloadingScaffoldWorld {
     caskBody: RAPIER.RigidBody,
     layout: UnloadingLayout,
     physics: CranePhysicsConfig,
+    lockConfig: LockConfig,
     physicsDtSeconds: number,
     physicsHz: number,
     seed: string,
@@ -90,6 +96,7 @@ export class UnloadingScaffoldWorld {
     this.caskBody = caskBody;
     this.layout = layout;
     this.physics = physics;
+    this.lockConfig = lockConfig;
     this.physicsDtSeconds = physicsDtSeconds;
     this.physicsHz = physicsHz;
     this.seed = seed;
@@ -104,6 +111,7 @@ export class UnloadingScaffoldWorld {
     seed: string,
     layout: UnloadingLayout = DEFAULT_UNLOADING_LAYOUT,
     physics: CranePhysicsConfig = DEFAULT_CRANE_PHYSICS_CONFIG,
+    lockConfig: LockConfig = DEFAULT_LOCK_CONFIG,
   ): UnloadingScaffoldWorld {
     const physicsDtSeconds = 1 / physicsHz;
     const world = new rapier.World({ x: 0, y: gravityY });
@@ -254,6 +262,7 @@ export class UnloadingScaffoldWorld {
       caskBody,
       layout,
       physics,
+      lockConfig,
       physicsDtSeconds,
       physicsHz,
       seed,
@@ -292,6 +301,10 @@ export class UnloadingScaffoldWorld {
 
   public getAbortReason(): string | null {
     return this.stage.abortReason;
+  }
+
+  public isLockReady(): boolean {
+    return this.lockReady;
   }
 
   /**
@@ -362,6 +375,57 @@ export class UnloadingScaffoldWorld {
 
     this.world.timestep = this.physicsDtSeconds;
     this.world.step();
+
+    this.updateLockAlignmentAndPhase();
+  }
+
+  private updateLockAlignmentAndPhase(): void {
+    // Only evaluate free-cask lock before LOCKED (joint comes in C5).
+    if (this.stage.phase !== "READY" && this.stage.phase !== "ALIGNING") {
+      this.lockReady = false;
+      this.alignStableTicks = 0;
+      return;
+    }
+
+    const spreaderT = this.spreaderBody.translation();
+    const spreaderV = this.spreaderBody.linvel();
+    const caskT = this.caskBody.translation();
+    const caskV = this.caskBody.linvel();
+
+    const alignment = evaluateLockAlignment({
+      spreader: {
+        x: spreaderT.x,
+        y: spreaderT.y,
+        angleRad: this.spreaderBody.rotation(),
+        vx: spreaderV.x,
+        vy: spreaderV.y,
+      },
+      cask: {
+        x: caskT.x,
+        y: caskT.y,
+        angleRad: this.caskBody.rotation(),
+        vx: caskV.x,
+        vy: caskV.y,
+      },
+      spreaderHalfHeight: this.layout.crane.spreaderHalfHeight,
+      caskHalfHeight: this.layout.cask.halfHeight,
+      config: this.lockConfig,
+    });
+
+    if (alignment.ok) {
+      this.alignStableTicks += 1;
+    } else {
+      this.alignStableTicks = 0;
+    }
+
+    this.lockReady =
+      alignment.ok && this.alignStableTicks >= this.lockConfig.stableAlignTicks;
+
+    if (this.lockReady) {
+      this.dispatchStageEvent({ type: "ALIGNMENT_OK" });
+    } else if (this.stage.phase === "ALIGNING") {
+      this.dispatchStageEvent({ type: "ALIGNMENT_LOST" });
+    }
   }
 
   private applyCableForces(): void {
@@ -506,6 +570,7 @@ export class UnloadingScaffoldWorld {
         cableLoad,
         // Displacement-dominant so the HUD moves when the load swings.
         sway: lateralSway + speedSway * 0.25,
+        lockReady: this.lockReady,
       },
       weather: {
         windHint: 0,

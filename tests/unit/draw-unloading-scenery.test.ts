@@ -46,7 +46,7 @@ describe("drawUnloadingScenery", () => {
         },
       ],
       cables: [],
-      instruments: { cableLoad: 0, sway: 0 },
+      instruments: { cableLoad: 0, sway: 0, lockReady: false },
       weather: { windHint: 0, waveHint: 0 },
     };
     drawDynamicUnloadingOverlays(g as never, snapshot);

@@ -36,10 +36,12 @@ export interface WeatherVisualState {
   waveHint: number;
 }
 
-/** Phase 1 placeholder instruments. */
+/** Instruments for HUD / later scoring. */
 export interface InstrumentState {
   cableLoad: number;
   sway: number;
+  /** True when spreader–cask alignment is stable enough to lock (Space). */
+  lockReady: boolean;
 }
 
 /**
@@ -66,7 +68,7 @@ export function createEmptyRenderSnapshot(
     stagePhase: "READY",
     entities: [],
     cables: [],
-    instruments: { cableLoad: 0, sway: 0 },
+    instruments: { cableLoad: 0, sway: 0, lockReady: false },
     weather: { windHint: 0, waveHint: 0 },
   };
 }
