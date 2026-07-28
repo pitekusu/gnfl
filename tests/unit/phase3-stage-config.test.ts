@@ -11,6 +11,7 @@ import {
   cradleTopY,
   holdMouthLocalY,
   isCaskClearOfHold,
+  isOverCradleZone,
 } from "@/game/unloading/stageThresholds";
 
 describe("lockConfig", () => {
@@ -84,5 +85,12 @@ describe("stageThresholds", () => {
     expect(isCaskClearOfHold(threshold + 0.5, restY)).toBe(false);
     // Ship heaving down (larger Y) raises the clear threshold (harder to clear).
     expect(clearOfHoldCaskCenterY(restY + 0.4)).toBeGreaterThan(threshold);
+  });
+
+  it("marks over-cradle by horizontal pad band", () => {
+    const { cradle } = DEFAULT_UNLOADING_LAYOUT;
+    expect(isOverCradleZone(cradle.centerX)).toBe(true);
+    expect(isOverCradleZone(cradle.centerX + cradle.halfWidth)).toBe(true);
+    expect(isOverCradleZone(cradle.centerX + cradle.halfWidth + 0.2)).toBe(false);
   });
 });

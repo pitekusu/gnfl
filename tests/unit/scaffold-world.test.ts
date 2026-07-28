@@ -176,6 +176,58 @@ describe("UnloadingScaffoldWorld", () => {
     world.free();
   });
 
+  it("traverses after clear-of-hold and enters LANDING over the cradle", async () => {
+    const rapier = await initRapier();
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "traverse-seed");
+    for (let i = 0; i < 60; i += 1) {
+      world.step();
+    }
+    for (let i = 0; i < 24; i += 1) {
+      world.snapSpreaderToCaskLockPose();
+      world.step();
+    }
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      lockPressed: true,
+    });
+    world.step();
+
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      hoistAxis: 1,
+    });
+    for (let i = 0; i < 360; i += 1) {
+      world.step();
+      if (world.getStagePhase() === "CLEAR_OF_HOLD") {
+        break;
+      }
+    }
+    expect(world.getStagePhase()).toBe("CLEAR_OF_HOLD");
+
+    // Move toward the quay cradle (positive X); stop hoist so length holds.
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      trolleyAxis: 1,
+    });
+    let sawTraversing = false;
+    for (let i = 0; i < 900; i += 1) {
+      world.step();
+      const phase = world.getStagePhase();
+      if (phase === "TRAVERSING") {
+        sawTraversing = true;
+      }
+      if (phase === "LANDING") {
+        break;
+      }
+    }
+    expect(sawTraversing).toBe(true);
+    expect(world.getStagePhase()).toBe("LANDING");
+    expect(
+      Math.abs(world.getTrolleyX() - DEFAULT_UNLOADING_LAYOUT.cradle.centerX),
+    ).toBeLessThanOrEqual(DEFAULT_UNLOADING_LAYOUT.cradle.halfWidth + 0.05);
+    world.free();
+  });
+
   it("slows trolley traverse while locked load is still low in the hold", async () => {
     const rapier = await initRapier();
     const freeWorld = UnloadingScaffoldWorld.create(rapier, 18, 120, "trolley-free");

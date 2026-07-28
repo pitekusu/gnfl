@@ -57,3 +57,14 @@ export function isCaskClearOfHold(
 export function cradleTopY(layout: UnloadingLayout = DEFAULT_UNLOADING_LAYOUT): number {
   return layout.cradle.centerY - layout.cradle.halfHeight;
 }
+
+/**
+ * Horizontal "over cradle" band for TRAVERSING → LANDING.
+ * Uses cradle pad half-width (posts sit at the outer edges).
+ */
+export function isOverCradleZone(
+  caskCenterX: number,
+  layout: UnloadingLayout = DEFAULT_UNLOADING_LAYOUT,
+): boolean {
+  return Math.abs(caskCenterX - layout.cradle.centerX) <= layout.cradle.halfWidth;
+}

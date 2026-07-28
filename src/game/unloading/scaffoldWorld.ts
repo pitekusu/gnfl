@@ -37,8 +37,14 @@ import {
   type StageMachineEvent,
   type StageMachineState,
 } from "@/game/unloading/stageMachine";
-import { isCaskClearOfHold } from "@/game/unloading/stageThresholds";
-import { integrateTrolleyOnRail } from "@/game/unloading/trolleyMotion";
+import {
+  isCaskClearOfHold,
+  isOverCradleZone,
+} from "@/game/unloading/stageThresholds";
+import {
+  applyAxisDeadzone,
+  integrateTrolleyOnRail,
+} from "@/game/unloading/trolleyMotion";
 
 /**
  * Unloading greybox world: quay/cradle, ship, trolley, cables, free cask.
@@ -480,6 +486,7 @@ export class UnloadingScaffoldWorld {
     this.tryEngageLockFromInput();
     this.updateBreakoutLiftPhase();
     this.updateClearOfHoldPhase();
+    this.updateTraverseAndCradlePhase();
   }
 
   private updateLockAlignmentAndPhase(): void {
@@ -592,6 +599,46 @@ export class UnloadingScaffoldWorld {
     const caskY = this.caskBody.translation().y;
     if (isCaskClearOfHold(caskY, shipY, this.layout, this.interlock)) {
       this.dispatchStageEvent({ type: "CLEARED_HOLD" });
+    }
+  }
+
+  /**
+   * CLEAR_OF_HOLD → TRAVERSING on trolley command;
+   * TRAVERSING / CLEAR_OF_HOLD → LANDING when over cradle;
+   * LANDING → TRAVERSING if the load leaves the cradle band.
+   *
+   * "Over cradle" uses trolley X (crane position) so swinging load lag
+   * does not miss the landing band during traverse.
+   */
+  private updateTraverseAndCradlePhase(): void {
+    const overCradle = isOverCradleZone(this.trolleyX, this.layout);
+    const trolleyDrive = applyAxisDeadzone(
+      this.control.trolleyAxis,
+      this.physics.trolley.axisDeadzone,
+    );
+
+    if (this.stage.phase === "CLEAR_OF_HOLD") {
+      if (overCradle) {
+        this.dispatchStageEvent({ type: "OVER_CRADLE" });
+        return;
+      }
+      if (Math.abs(trolleyDrive) > 0) {
+        this.dispatchStageEvent({ type: "BEGIN_TRAVERSE" });
+      }
+      return;
+    }
+
+    if (this.stage.phase === "TRAVERSING") {
+      if (overCradle) {
+        this.dispatchStageEvent({ type: "OVER_CRADLE" });
+      }
+      return;
+    }
+
+    if (this.stage.phase === "LANDING") {
+      if (!overCradle) {
+        this.dispatchStageEvent({ type: "BEGIN_TRAVERSE" });
+      }
     }
   }
 
