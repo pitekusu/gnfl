@@ -37,7 +37,9 @@ import {
   type StageMachineEvent,
   type StageMachineState,
 } from "@/game/unloading/stageMachine";
+import { evaluateCradleSeating } from "@/game/unloading/cradleSeating";
 import {
+  cradleTopY,
   isCaskClearOfHold,
   isOverCradleZone,
 } from "@/game/unloading/stageThresholds";
@@ -88,6 +90,7 @@ export class UnloadingScaffoldWorld {
   private lockJoint: RAPIER.ImpulseJoint | null = null;
   /** Cask world Y captured when the lock joint engaged (for breakout lift). */
   private lockEngageCaskY: number | null = null;
+  private seatStableTicks = 0;
 
   private constructor(
     rapier: RapierModule,
@@ -368,6 +371,43 @@ export class UnloadingScaffoldWorld {
   }
 
   /**
+   * Place locked load onto the cradle pad with zero velocity (tests / debug).
+   * Keeps trolley above the cradle so seating checks can pass without long settle.
+   */
+  public snapLoadOntoCradlePad(): void {
+    const top = cradleTopY(this.layout);
+    // Cask bottom on cradle top: bottom = y + halfH = top ⇒ y = top - halfH.
+    const caskY = top - this.layout.cask.halfHeight;
+    const caskX = this.layout.cradle.centerX;
+    this.trolleyX = caskX;
+    this.trolleyVelocity = 0;
+    this.trolleyBody.setNextKinematicTranslation({
+      x: this.trolleyX,
+      y: this.layout.crane.railY,
+    });
+    this.trolleyBody.setNextKinematicRotation(0);
+
+    this.caskBody.setTranslation({ x: caskX, y: caskY }, true);
+    this.caskBody.setRotation(0, true);
+    this.caskBody.setLinvel({ x: 0, y: 0 }, true);
+    this.caskBody.setAngvel(0, true);
+
+    const spreaderY =
+      caskY - this.layout.cask.halfHeight - this.layout.crane.spreaderHalfHeight;
+    this.spreaderBody.setTranslation({ x: caskX, y: spreaderY }, true);
+    this.spreaderBody.setRotation(0, true);
+    this.spreaderBody.setLinvel({ x: 0, y: 0 }, true);
+    this.spreaderBody.setAngvel(0, true);
+
+    const hang = spreaderY - this.layout.crane.railY;
+    this.cableTargetLength = clampCableTargetLength(
+      hang,
+      this.physics.hoist.minCableLength,
+      this.physics.hoist.maxCableLength,
+    );
+  }
+
+  /**
    * Place spreader on the cask top face with zero relative velocity.
    * Intended for tests (and debug) so lockReady can be reached without piloting.
    */
@@ -487,6 +527,7 @@ export class UnloadingScaffoldWorld {
     this.updateBreakoutLiftPhase();
     this.updateClearOfHoldPhase();
     this.updateTraverseAndCradlePhase();
+    this.updateSeatingPhase();
   }
 
   private updateLockAlignmentAndPhase(): void {
@@ -637,8 +678,46 @@ export class UnloadingScaffoldWorld {
 
     if (this.stage.phase === "LANDING") {
       if (!overCradle) {
+        this.seatStableTicks = 0;
         this.dispatchStageEvent({ type: "BEGIN_TRAVERSE" });
       }
+    }
+  }
+
+  /**
+   * While LANDING, require stable cradle seating for seatStableTicks → SEATED.
+   */
+  private updateSeatingPhase(): void {
+    if (this.stage.phase !== "LANDING") {
+      this.seatStableTicks = 0;
+      return;
+    }
+
+    const caskT = this.caskBody.translation();
+    const caskV = this.caskBody.linvel();
+    const seating = evaluateCradleSeating({
+      cask: {
+        x: caskT.x,
+        y: caskT.y,
+        angleRad: this.caskBody.rotation(),
+        vx: caskV.x,
+        vy: caskV.y,
+      },
+      caskHalfHeight: this.layout.cask.halfHeight,
+      cradleCenterX: this.layout.cradle.centerX,
+      cradleTopY: cradleTopY(this.layout),
+      interlock: this.interlock,
+    });
+
+    if (seating.ok) {
+      this.seatStableTicks += 1;
+    } else {
+      this.seatStableTicks = 0;
+    }
+
+    if (this.seatStableTicks >= this.interlock.seatStableTicks) {
+      this.dispatchStageEvent({ type: "SEAT_STABLE" });
+      this.seatStableTicks = 0;
     }
   }
 

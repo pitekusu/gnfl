@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createNeutralPlayerInput } from "@/game/protocol";
 import { initRapier } from "@/game/simulation/rapierInit";
+import { DEFAULT_INTERLOCK_CONFIG } from "@/game/unloading/interlockConfig";
 import { DEFAULT_UNLOADING_LAYOUT } from "@/game/unloading/layout";
 import { UnloadingScaffoldWorld } from "@/game/unloading/scaffoldWorld";
 
@@ -225,6 +226,73 @@ describe("UnloadingScaffoldWorld", () => {
     expect(
       Math.abs(world.getTrolleyX() - DEFAULT_UNLOADING_LAYOUT.cradle.centerX),
     ).toBeLessThanOrEqual(DEFAULT_UNLOADING_LAYOUT.cradle.halfWidth + 0.05);
+    world.free();
+  });
+
+  it("seats the load on the cradle after landing and lowering", async () => {
+    const rapier = await initRapier();
+    // Short seat hold for a faster integration test.
+    const interlock = {
+      ...DEFAULT_INTERLOCK_CONFIG,
+      seatStableTicks: 12,
+    };
+    const world = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "seat-seed",
+      DEFAULT_UNLOADING_LAYOUT,
+      undefined,
+      undefined,
+      interlock,
+    );
+    for (let i = 0; i < 60; i += 1) {
+      world.step();
+    }
+    for (let i = 0; i < 24; i += 1) {
+      world.snapSpreaderToCaskLockPose();
+      world.step();
+    }
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      lockPressed: true,
+    });
+    world.step();
+
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      hoistAxis: 1,
+    });
+    for (let i = 0; i < 400; i += 1) {
+      world.step();
+      if (world.getStagePhase() === "CLEAR_OF_HOLD") {
+        break;
+      }
+    }
+    expect(world.getStagePhase()).toBe("CLEAR_OF_HOLD");
+
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      trolleyAxis: 1,
+    });
+    for (let i = 0; i < 900; i += 1) {
+      world.step();
+      if (world.getStagePhase() === "LANDING") {
+        break;
+      }
+    }
+    expect(world.getStagePhase()).toBe("LANDING");
+
+    // Snap to pad (piloted lower is possible in-game; jointed swing makes CI flaky).
+    world.setControlInput(createNeutralPlayerInput());
+    for (let i = 0; i < 40; i += 1) {
+      world.snapLoadOntoCradlePad();
+      world.step();
+      if (world.getStagePhase() === "SEATED") {
+        break;
+      }
+    }
+    expect(world.getStagePhase()).toBe("SEATED");
     world.free();
   });
 
