@@ -40,13 +40,13 @@ types `COMPLETED` / `ABORTED`. They are not wired end-to-end yet.
 
 ### Categories and rank (directive §11)
 
-| Category            | Weight |
-| ------------------- | -----: |
-| Handling quality    |    30% |
-| Landing precision   |    25% |
-| Sway control        |    20% |
-| Equipment care      |    15% |
-| Operation efficiency|    10% |
+| Category             | Weight |
+| -------------------- | -----: |
+| Handling quality     |    30% |
+| Landing precision    |    25% |
+| Sway control         |    20% |
+| Equipment care       |    15% |
+| Operation efficiency |    10% |
 
 - Each category → 0–100; weighted overall → `score = round(clamp(overall,0,100)*1000)`
   (0–100_000 integer).
@@ -67,13 +67,13 @@ types `COMPLETED` / `ABORTED`. They are not wired end-to-end yet.
 
 ## Out of scope
 
-| Topic                         | Where   |
-| ----------------------------- | ------- |
-| POST score / leaderboard API  | Phase 6 |
-| DynamoDB / Lambda             | Phase 6 |
-| Domain / CD                   | Phase 7 |
-| Art polish on result screen   | Phase 8 |
-| Threshold balance pass        | Phase 9 |
+| Topic                        | Where   |
+| ---------------------------- | ------- |
+| POST score / leaderboard API | Phase 6 |
+| DynamoDB / Lambda            | Phase 6 |
+| Domain / CD                  | Phase 7 |
+| Art polish on result screen  | Phase 8 |
+| Threshold balance pass       | Phase 9 |
 
 ## Consequences
 

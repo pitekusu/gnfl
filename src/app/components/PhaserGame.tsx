@@ -29,8 +29,11 @@ export function PhaserGame({ onStageEnd }: PhaserGameProps = {}) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   const onStageEndRef = useRef(onStageEnd);
-  onStageEndRef.current = onStageEnd;
   const stageEndReportedRef = useRef(false);
+
+  useEffect(() => {
+    onStageEndRef.current = onStageEnd;
+  }, [onStageEnd]);
   const [phaserStatus, setPhaserStatus] = useState("initializing");
   const [workerStatus, setWorkerStatus] = useState("idle");
   const [fineMode, setFineMode] = useState(false);
