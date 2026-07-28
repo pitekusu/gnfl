@@ -47,16 +47,16 @@ final art (8).
 
 ## Controls (Phase 3)
 
-| Key       | Action                                          |
-| --------- | ----------------------------------------------- |
-| `A` / `←` | Trolley left                                    |
-| `D` / `→` | Trolley right                                   |
-| `W` / `↑` | Hoist up (shorten cable)                        |
-| `S` / `↓` | Hoist down (lengthen cable)                     |
-| `Shift`   | Fine mode（緩速状態）                           |
-| `Space`   | Lock when ready; unlock anywhere (re-lockable)  |
-| `E`       | Emergency stop → safe abort                     |
-| `Esc`     | Pause toggle                                    |
+| Key       | Action                                         |
+| --------- | ---------------------------------------------- |
+| `A` / `←` | Trolley left                                   |
+| `D` / `→` | Trolley right                                  |
+| `W` / `↑` | Hoist up (shorten cable)                       |
+| `S` / `↓` | Hoist down (lengthen cable)                    |
+| `Shift`   | Fine mode（緩速状態）                          |
+| `Space`   | Lock when ready; unlock anywhere (re-lockable) |
+| `E`       | Emergency stop → safe abort                    |
+| `Esc`     | Pause toggle                                   |
 
 **Complete:** free/drop seating on the cradle finishes immediately; locked seating
 finishes when you unlock on the pad (`Space`).
