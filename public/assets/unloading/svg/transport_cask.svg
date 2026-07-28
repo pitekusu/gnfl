@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Fictional transport cask — greybox industrial, no text / radiation star as hero -->
+  <g id="cask_body">
+    <rect x="22" y="12" width="56" height="76" rx="10" fill="#6b5a3e" stroke="#c4a574" stroke-width="2.5"/>
+    <rect x="28" y="20" width="44" height="60" rx="6" fill="#8a7348" opacity="0.55"/>
+    <!-- Band rings -->
+    <rect x="20" y="28" width="60" height="5" rx="1" fill="#3d3424" opacity="0.9"/>
+    <rect x="20" y="48" width="60" height="5" rx="1" fill="#3d3424" opacity="0.9"/>
+    <rect x="20" y="68" width="60" height="5" rx="1" fill="#3d3424" opacity="0.9"/>
+    <!-- Asymmetric mark so roll is readable -->
+    <circle cx="68" cy="38" r="5" fill="#ffb020" stroke="#ffe0a0" stroke-width="1.5"/>
+    <path d="M64 38h8M68 34v8" stroke="#3d3424" stroke-width="1.2"/>
+  </g>
+  <g id="lift_points">
+    <rect x="38" y="6" width="8" height="10" rx="1.5" fill="#4a5560" stroke="#9eb0be" stroke-width="1.5"/>
+    <rect x="54" y="6" width="8" height="10" rx="1.5" fill="#4a5560" stroke="#9eb0be" stroke-width="1.5"/>
+  </g>
+</svg>

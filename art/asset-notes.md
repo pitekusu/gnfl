@@ -91,3 +91,9 @@ Greybox depths in `SimulationScene` should converge to this map in later commits
 ## Fallback
 
 If a file 404s or load fails, keep greybox `Rectangle` for that entity. Boot must never hard-fail on missing art.
+
+## Status (Phase 8 C4)
+
+Minimal industrial SVG placeholders land under `public/assets/unloading/svg/` for all
+design-directive basenames. They are scalable `viewBox` drawings (no text). Phaser
+still uses greybox rectangles until C5 wires texture load + Image display.

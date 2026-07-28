@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <g id="pole">
+    <rect x="8" y="10" width="5" height="80" rx="1" fill="#5a6570" stroke="#a8b8c4" stroke-width="1.2"/>
+  </g>
+  <g id="sock">
+    <path
+      d="M14 28 L72 22 L78 38 L14 42 Z"
+      fill="#c04030"
+      stroke="#f0a090"
+      stroke-width="1.5"
+    />
+    <path d="M14 42 L72 48 L78 38" fill="#a03028" opacity="0.7"/>
+    <line x1="30" y1="26" x2="30" y2="44" stroke="#f0c0b0" stroke-width="1" opacity="0.5"/>
+    <line x1="48" y1="24" x2="48" y2="46" stroke="#f0c0b0" stroke-width="1" opacity="0.5"/>
+  </g>
+</svg>

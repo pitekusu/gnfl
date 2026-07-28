@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Lighter coaming so it does not fully hide the seated cask -->
+  <g id="u_posts_front">
+    <rect x="14" y="24" width="10" height="52" rx="2" fill="#6a5438" fill-opacity="0.65" stroke="#d4b484" stroke-width="1.8"/>
+    <rect x="76" y="24" width="10" height="52" rx="2" fill="#6a5438" fill-opacity="0.65" stroke="#d4b484" stroke-width="1.8"/>
+  </g>
+</svg>

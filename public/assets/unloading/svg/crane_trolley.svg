@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <g id="trolley_body">
+    <rect x="12" y="30" width="76" height="36" rx="4" fill="#c07820" stroke="#ffe0a8" stroke-width="2.5"/>
+    <rect x="20" y="38" width="60" height="12" rx="2" fill="#e09838" opacity="0.65"/>
+  </g>
+  <g id="rail_wheels">
+    <circle cx="26" cy="28" r="7" fill="#3a4550" stroke="#a8b8c4" stroke-width="1.8"/>
+    <circle cx="74" cy="28" r="7" fill="#3a4550" stroke="#a8b8c4" stroke-width="1.8"/>
+    <circle cx="26" cy="72" r="5" fill="#3a4550" stroke="#a8b8c4" stroke-width="1.5"/>
+    <circle cx="74" cy="72" r="5" fill="#3a4550" stroke="#a8b8c4" stroke-width="1.5"/>
+  </g>
+  <g id="cable_attach">
+    <rect x="24" y="64" width="10" height="8" rx="1" fill="#2a3238" stroke="#d0dce6" stroke-width="1.5"/>
+    <rect x="66" y="64" width="10" height="8" rx="1" fill="#2a3238" stroke="#d0dce6" stroke-width="1.5"/>
+  </g>
+</svg>

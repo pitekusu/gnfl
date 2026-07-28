@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   UNLOADING_ASSET_ROOT,
@@ -47,5 +49,12 @@ describe("unloadingAssetPaths", () => {
     expect(unloadingBackgroundUrl("berthBackdrop")).toBe(
       "/assets/unloading/backgrounds/berth_backdrop.webp",
     );
+  });
+
+  it("ships minimal industrial SVG files under public/", () => {
+    const svgDir = path.resolve(process.cwd(), "public/assets/unloading/svg");
+    for (const file of Object.values(UNLOADING_SVG_FILES)) {
+      expect(existsSync(path.join(svgDir, file)), file).toBe(true);
+    }
   });
 });
