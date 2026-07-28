@@ -5,6 +5,7 @@ import {
   drawDynamicUnloadingOverlays,
   drawStaticUnloadingScenery,
 } from "@/game/phaser/drawUnloadingScenery";
+import { resolveEntityDisplay } from "@/game/phaser/entityDisplayRegistry";
 import { SnapshotBuffer } from "@/game/phaser/snapshotBuffer";
 import { visibilityToSimulationAction } from "@/game/phaser/visibilityControl";
 import {
@@ -297,33 +298,20 @@ export class SimulationScene extends Phaser.Scene {
 
   private syncEntity(entity: RenderEntityState): void {
     let view = this.entityViews.get(entity.id);
+    const display = resolveEntityDisplay(entity.kind);
     if (!view) {
-      const fill = entityFillColor(entity.kind);
-      const stroke = entityStrokeColor(entity.kind);
+      // C5 will prefer Image when textureKey is loaded; greybox rectangle for now.
       view = this.add.rectangle(
         worldToDisplayX(entity.x),
         worldToDisplayY(entity.y),
         worldSizeToDisplay(entity.width),
         worldSizeToDisplay(entity.height),
-        fill,
+        display.fillColor,
       );
-      view.setOrigin(0.5, 0.5);
-      // Ship is a hollow hold outline so the free cask is visible inside.
-      if (entity.kind === "ship") {
-        view.setFillStyle(fill, 0.18);
-        view.setStrokeStyle(4, stroke, 1);
-        view.setDepth(8);
-      } else if (entity.kind === "cask") {
-        view.setFillStyle(fill, 1);
-        view.setStrokeStyle(4, stroke, 1);
-        view.setDepth(14);
-      } else if (entity.kind === "spreader" || entity.kind === "trolley") {
-        view.setStrokeStyle(3, stroke);
-        view.setDepth(15);
-      } else {
-        view.setStrokeStyle(3, stroke);
-        view.setDepth(5);
-      }
+      view.setOrigin(display.originX, display.originY);
+      view.setFillStyle(display.fillColor, display.fillAlpha);
+      view.setStrokeStyle(display.strokeWidth, display.strokeColor, 1);
+      view.setDepth(display.depth);
       this.entityViews.set(entity.id, view);
     }
 
@@ -393,47 +381,5 @@ export class SimulationScene extends Phaser.Scene {
       view.destroy();
     }
     this.entityViews.clear();
-  }
-}
-
-function entityFillColor(kind: RenderEntityState["kind"]): number {
-  switch (kind) {
-    case "quay":
-    case "floor":
-      return 0x3a4f5f;
-    case "cradle":
-      return 0x5a4632;
-    case "ship":
-      // High contrast vs dark sea background so the hull reads clearly.
-      return 0x7eb3d4;
-    case "trolley":
-      return 0xf0a030;
-    case "spreader":
-      return 0xd4573a;
-    case "cask":
-      // Bright amber so the free cask reads clearly inside the hollow ship.
-      return 0xffb020;
-    default:
-      return 0x4f9cff;
-  }
-}
-
-function entityStrokeColor(kind: RenderEntityState["kind"]): number {
-  switch (kind) {
-    case "quay":
-    case "floor":
-      return 0x8fa6b8;
-    case "cradle":
-      return 0xc4a574;
-    case "ship":
-      return 0xb8d4e8;
-    case "trolley":
-      return 0xffe0a8;
-    case "spreader":
-      return 0xffc4b0;
-    case "cask":
-      return 0xfff0c8;
-    default:
-      return 0xd7ecff;
   }
 }
