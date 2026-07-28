@@ -107,11 +107,7 @@ function nextPhase(phase: StagePhase, event: StageMachineEvent): StagePhase | nu
   // Straight seating on the cradle pad can complete from any active phase
   // (lower carefully or drop from above — stability is checked in physics).
   if (event.type === "SEAT_STABLE") {
-    if (
-      phase === "COMPLETED" ||
-      phase === "SAFE_ABORTED" ||
-      phase === "SEATED"
-    ) {
+    if (phase === "COMPLETED" || phase === "SAFE_ABORTED" || phase === "SEATED") {
       return null;
     }
     return "SEATED";

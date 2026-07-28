@@ -188,10 +188,8 @@ export class UnloadingScaffoldWorld {
       ).setFriction(0.95),
       cradleBody,
     );
-    const postLocalY =
-      -layout.cradle.halfHeight - layout.cradle.postHalfHeight;
-    const postInsetX =
-      layout.cradle.halfWidth - layout.cradle.postHalfWidth;
+    const postLocalY = -layout.cradle.halfHeight - layout.cradle.postHalfHeight;
+    const postInsetX = layout.cradle.halfWidth - layout.cradle.postHalfWidth;
     world.createCollider(
       rapier.ColliderDesc.cuboid(
         layout.cradle.postHalfWidth,
@@ -723,10 +721,7 @@ export class UnloadingScaffoldWorld {
    * - Locked careful placement: SEATED only; COMPLETED on Space unlock.
    */
   private updateSeatingPhase(): void {
-    if (
-      this.stage.phase === "COMPLETED" ||
-      this.stage.phase === "SAFE_ABORTED"
-    ) {
+    if (this.stage.phase === "COMPLETED" || this.stage.phase === "SAFE_ABORTED") {
       this.seatStableTicks = 0;
       return;
     }
@@ -799,10 +794,7 @@ export class UnloadingScaffoldWorld {
    * E-stop, world-bounds escape, and physics runaway → SAFE_ABORTED.
    */
   private updateSafetyAbort(): void {
-    if (
-      this.stage.phase === "COMPLETED" ||
-      this.stage.phase === "SAFE_ABORTED"
-    ) {
+    if (this.stage.phase === "COMPLETED" || this.stage.phase === "SAFE_ABORTED") {
       return;
     }
 

@@ -102,9 +102,7 @@ export function PhaserGame() {
           <span className="game-hud-label">工程</span>
           <span className="game-hud-value game-hud-phase" data-testid="hud-stage-phase">
             {formatStagePhaseHud(stagePhase)}
-            {stagePhase === "SAFE_ABORTED" && abortReason
-              ? ` · ${abortReason}`
-              : ""}
+            {stagePhase === "SAFE_ABORTED" && abortReason ? ` · ${abortReason}` : ""}
           </span>
         </div>
         <div className="game-hud-row">

@@ -19,8 +19,13 @@ describe("UnloadingScaffoldWorld", () => {
     expect(snapshot.stagePhase).toBe("READY");
     expect(world.getStagePhase()).toBe("READY");
     // Crane starts over the quay, not parked above the hold cask.
-    expect(world.getTrolleyX()).toBeCloseTo(DEFAULT_UNLOADING_LAYOUT.crane.spreaderSpawnX, 5);
-    expect(world.getTrolleyX()).toBeGreaterThan(DEFAULT_UNLOADING_LAYOUT.cask.spawnX + 2);
+    expect(world.getTrolleyX()).toBeCloseTo(
+      DEFAULT_UNLOADING_LAYOUT.crane.spreaderSpawnX,
+      5,
+    );
+    expect(world.getTrolleyX()).toBeGreaterThan(
+      DEFAULT_UNLOADING_LAYOUT.cask.spawnX + 2,
+    );
     expect(snapshot.cables).toHaveLength(2);
     expect(snapshot.cables[0]?.id).toBe("cable-left");
     expect(snapshot.cables[1]?.id).toBe("cable-right");
@@ -436,7 +441,12 @@ describe("UnloadingScaffoldWorld", () => {
   it("slows trolley traverse while locked load is still low in the hold", async () => {
     const rapier = await initRapier();
     const freeWorld = UnloadingScaffoldWorld.create(rapier, 18, 120, "trolley-free");
-    const lockedWorld = UnloadingScaffoldWorld.create(rapier, 18, 120, "trolley-locked");
+    const lockedWorld = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "trolley-locked",
+    );
 
     for (let i = 0; i < 60; i += 1) {
       freeWorld.step();
