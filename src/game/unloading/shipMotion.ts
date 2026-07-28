@@ -1,4 +1,9 @@
 import { seedPhase } from "@/game/unloading/seedHash";
+import { sampleSeededUnitNoise1D } from "@/game/unloading/seededNoise";
+import {
+  DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+  type WaveEnvironmentConfig,
+} from "@/game/unloading/waveEnvironmentConfig";
 
 export interface ShipRestPose {
   x: number;
@@ -8,24 +13,28 @@ export interface ShipRestPose {
 export interface ShipTransform {
   x: number;
   y: number;
-  /** Pitch in radians (small). Positive tilts clockwise in our Y-down frame. */
+  /** Pitch in radians. Positive tilts clockwise in our Y-down frame. */
   angleRad: number;
-  /** Base heave offset used for weather visual hints. */
+  /** Heave offset applied to rest.y (also used as waveHint). */
   heave: number;
   pitch: number;
+  /** Continuous amplitude envelope in [minScale, maxScale] after sampling. */
+  waveEnvelope: number;
 }
 
 export interface BaseShipMotionOptions {
+  /** Continuous wave parameters; defaults to {@link DEFAULT_WAVE_ENVIRONMENT_CONFIG}. */
+  wave?: WaveEnvironmentConfig;
   /**
-   * Extra multiplier for high-wave events (Phase 4).
-   * 0 = calm base motion only; 1 ≈ double amplitude. Clamped to [0, 2].
+   * Legacy extra multiplier for tests / temporary callers (1 + clamp(env, 0, 2)).
+   * Prefer tuning {@link WaveEnvironmentConfig} instead of event envelopes.
    */
   highWaveEnvelope?: number;
 }
 
 /**
- * Seeded low-frequency heave + pitch for the moored ship.
- * Pure function: same seed + time ⇒ same pose (no Math.random).
+ * Seeded heave + pitch for the moored ship with a slow continuous amplitude envelope.
+ * Pure: same seed + time + config ⇒ same pose (no Math.random).
  */
 export function sampleBaseShipMotion(
   seed: string,
@@ -33,32 +42,57 @@ export function sampleBaseShipMotion(
   rest: ShipRestPose,
   options: BaseShipMotionOptions = {},
 ): ShipTransform {
-  const envelope = clamp(options.highWaveEnvelope ?? 0, 0, 2);
-  const ampScale = 1 + envelope;
+  const wave = options.wave ?? DEFAULT_WAVE_ENVIRONMENT_CONFIG;
+  const waveEnvelope = sampleWaveEnvelopeScale(seed, elapsedSeconds, wave);
+  const eventScale = 1 + clamp(options.highWaveEnvelope ?? 0, 0, 2);
+  const ampScale = waveEnvelope * eventScale;
 
   const p0 = seedPhase(seed, 0);
   const p1 = seedPhase(seed, 1);
   const p2 = seedPhase(seed, 2);
+  const phases = [p0, p1, p2] as const;
 
-  const heave =
-    (Math.sin(elapsedSeconds * 0.55 + p0) * 0.16 +
-      Math.sin(elapsedSeconds * 0.97 + p1) * 0.06 +
-      Math.sin(elapsedSeconds * 1.41 + p2) * 0.03) *
-    ampScale;
+  let heaveSum = 0;
+  for (let i = 0; i < 3; i += 1) {
+    heaveSum +=
+      Math.sin(elapsedSeconds * wave.heave.frequencies[i]! + phases[i]!) *
+      wave.heave.amplitudes[i]!;
+  }
+  heaveSum *= wave.heaveAmplitudeScale * ampScale;
 
-  const pitch =
-    (Math.sin(elapsedSeconds * 0.41 + p1) * 0.022 +
-      Math.sin(elapsedSeconds * 0.73 + p0) * 0.01 +
-      Math.sin(elapsedSeconds * 1.19 + p2) * 0.006) *
-    ampScale;
+  let pitchSum = 0;
+  for (let i = 0; i < 3; i += 1) {
+    pitchSum +=
+      Math.sin(elapsedSeconds * wave.pitch.frequencies[i]! + phases[i]!) *
+      wave.pitch.amplitudes[i]!;
+  }
+  pitchSum *= wave.pitchAmplitudeScale * ampScale;
 
   return {
     x: rest.x,
-    y: rest.y + heave,
-    angleRad: pitch,
-    heave,
-    pitch,
+    y: rest.y + heaveSum,
+    angleRad: pitchSum,
+    heave: heaveSum,
+    pitch: pitchSum,
+    waveEnvelope,
   };
+}
+
+/**
+ * Slow breathing scale for wave amplitude from seeded unit noise.
+ * Remaps [0, 1] noise into [envelope.minScale, envelope.maxScale].
+ */
+export function sampleWaveEnvelopeScale(
+  seed: string,
+  elapsedSeconds: number,
+  wave: WaveEnvironmentConfig = DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+): number {
+  const { minScale, maxScale, noiseSpeed, noiseLane } = wave.envelope;
+  if (noiseSpeed <= 0 || minScale === maxScale) {
+    return (minScale + maxScale) * 0.5;
+  }
+  const u = sampleSeededUnitNoise1D(seed, noiseLane, elapsedSeconds * noiseSpeed);
+  return minScale + u * (maxScale - minScale);
 }
 
 function clamp(value: number, min: number, max: number): number {

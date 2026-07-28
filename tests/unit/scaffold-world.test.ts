@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { createNeutralPlayerInput } from "@/game/protocol";
 import { initRapier } from "@/game/simulation/rapierInit";
+import { DEFAULT_CRANE_PHYSICS_CONFIG } from "@/game/unloading/cranePhysicsConfig";
 import { DEFAULT_INTERLOCK_CONFIG } from "@/game/unloading/interlockConfig";
+import { DEFAULT_LOCK_CONFIG } from "@/game/unloading/lockConfig";
 import { DEFAULT_UNLOADING_LAYOUT } from "@/game/unloading/layout";
 import { UnloadingScaffoldWorld } from "@/game/unloading/scaffoldWorld";
+import { DEFAULT_WAVE_ENVIRONMENT_CONFIG } from "@/game/unloading/waveEnvironmentConfig";
+import { DEFAULT_WIND_ENVIRONMENT_CONFIG } from "@/game/unloading/windEnvironmentConfig";
 
 describe("UnloadingScaffoldWorld", () => {
   it("exposes trolley, spreader, cask, and cable segments", async () => {
@@ -31,6 +35,82 @@ describe("UnloadingScaffoldWorld", () => {
     expect(snapshot.cables[1]?.id).toBe("cable-right");
     expect(() => JSON.stringify(snapshot)).not.toThrow();
     world.free();
+  });
+
+  it("writes continuous wave envelope and waveHint into snapshots", async () => {
+    const rapier = await initRapier();
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "wave-wire-seed");
+    let maxAbsHint = 0;
+    for (let i = 0; i < 600; i += 1) {
+      world.step();
+      const snap = world.buildSnapshot(i + 1, 0);
+      maxAbsHint = Math.max(maxAbsHint, Math.abs(snap.weather.waveHint));
+      expect(world.getWaveEnvelope()).toBeGreaterThan(0);
+    }
+    // Continuous waves should produce a non-trivial heave hint over a few seconds.
+    expect(maxAbsHint).toBeGreaterThan(0.2);
+    world.free();
+  });
+
+  it("applies continuous wind so the hanging load sways more than with zero wind", async () => {
+    const rapier = await initRapier();
+    const calmWind = {
+      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
+      baseForce: 0.01,
+      maxForceAbs: 1,
+      lockedBaseForce: 0.01,
+      lockedMaxForceAbs: 1,
+      oscWeight: 1,
+      directionBias: 0,
+    };
+    const strongWind = {
+      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
+      baseForce: 95,
+      maxForceAbs: 140,
+      lockedBaseForce: 95,
+      lockedMaxForceAbs: 140,
+    };
+    const calm = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "wind-sway",
+      DEFAULT_UNLOADING_LAYOUT,
+      DEFAULT_CRANE_PHYSICS_CONFIG,
+      DEFAULT_LOCK_CONFIG,
+      DEFAULT_INTERLOCK_CONFIG,
+      DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+      calmWind,
+    );
+    const windy = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "wind-sway",
+      DEFAULT_UNLOADING_LAYOUT,
+      DEFAULT_CRANE_PHYSICS_CONFIG,
+      DEFAULT_LOCK_CONFIG,
+      DEFAULT_INTERLOCK_CONFIG,
+      DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+      strongWind,
+    );
+
+    let maxCalmSway = 0;
+    let maxWindySway = 0;
+    let maxAbsWindHint = 0;
+    for (let i = 0; i < 300; i += 1) {
+      calm.step();
+      windy.step();
+      maxCalmSway = Math.max(maxCalmSway, calm.buildSnapshot(i, 0).instruments.sway);
+      const windySnap = windy.buildSnapshot(i, 0);
+      maxWindySway = Math.max(maxWindySway, windySnap.instruments.sway);
+      maxAbsWindHint = Math.max(maxAbsWindHint, Math.abs(windySnap.weather.windHint));
+    }
+    expect(maxWindySway).toBeGreaterThan(maxCalmSway);
+    expect(maxAbsWindHint).toBeGreaterThan(0.2);
+    expect(windy.getWindHint()).not.toBe(0);
+    calm.free();
+    windy.free();
   });
 
   it("reflects dispatched stage machine events in snapshots", async () => {
@@ -238,7 +318,27 @@ describe("UnloadingScaffoldWorld", () => {
 
   it("traverses after clear-of-hold and enters LANDING over the cradle", async () => {
     const rapier = await initRapier();
-    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "traverse-seed");
+    // Stage-path test: calm wind so trolley progress is predictable.
+    const noWind = {
+      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
+      baseForce: 0.01,
+      maxForceAbs: 1,
+      lockedBaseForce: 0.01,
+      lockedMaxForceAbs: 1,
+      oscWeight: 1,
+    };
+    const world = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "traverse-seed",
+      DEFAULT_UNLOADING_LAYOUT,
+      DEFAULT_CRANE_PHYSICS_CONFIG,
+      DEFAULT_LOCK_CONFIG,
+      DEFAULT_INTERLOCK_CONFIG,
+      DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+      noWind,
+    );
     for (let i = 0; i < 60; i += 1) {
       world.step();
     }
@@ -270,17 +370,20 @@ describe("UnloadingScaffoldWorld", () => {
       trolleyAxis: 1,
     });
     let sawTraversing = false;
-    for (let i = 0; i < 900; i += 1) {
+    let sawLanding = false;
+    for (let i = 0; i < 1200; i += 1) {
       world.step();
       const phase = world.getStagePhase();
       if (phase === "TRAVERSING") {
         sawTraversing = true;
       }
       if (phase === "LANDING") {
+        sawLanding = true;
         break;
       }
     }
     expect(sawTraversing).toBe(true);
+    expect(sawLanding).toBe(true);
     expect(world.getStagePhase()).toBe("LANDING");
     expect(
       Math.abs(world.getTrolleyX() - DEFAULT_UNLOADING_LAYOUT.cradle.centerX),
@@ -290,10 +393,18 @@ describe("UnloadingScaffoldWorld", () => {
 
   it("seats the load on the cradle after landing and lowering", async () => {
     const rapier = await initRapier();
-    // Short seat hold for a faster integration test.
+    // Short seat hold for a faster integration test; calm wind so lock/seat path is stable.
     const interlock = {
       ...DEFAULT_INTERLOCK_CONFIG,
       seatStableTicks: 12,
+    };
+    const noWind = {
+      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
+      baseForce: 0.01,
+      maxForceAbs: 1,
+      lockedBaseForce: 0.01,
+      lockedMaxForceAbs: 1,
+      oscWeight: 1,
     };
     const world = UnloadingScaffoldWorld.create(
       rapier,
@@ -301,9 +412,11 @@ describe("UnloadingScaffoldWorld", () => {
       120,
       "seat-seed",
       DEFAULT_UNLOADING_LAYOUT,
-      undefined,
-      undefined,
+      DEFAULT_CRANE_PHYSICS_CONFIG,
+      DEFAULT_LOCK_CONFIG,
       interlock,
+      DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+      noWind,
     );
     for (let i = 0; i < 60; i += 1) {
       world.step();
@@ -490,23 +603,44 @@ describe("UnloadingScaffoldWorld", () => {
   it("settles the free cask onto the ship hold floor", async () => {
     const rapier = await initRapier();
     const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "cask-seed");
-    const start = world.getCaskTranslation();
     for (let i = 0; i < 240; i += 1) {
       world.step();
     }
     const settled = world.getCaskTranslation();
-    // Y-down: resting on the hold floor is lower (larger y) than the spawn mouth.
-    expect(settled.y).toBeGreaterThan(start.y);
+    const ship = DEFAULT_UNLOADING_LAYOUT.ship;
+    const cask = DEFAULT_UNLOADING_LAYOUT.cask;
     // Still roughly under the hold (not teleported to the quay).
-    expect(
-      Math.abs(settled.x - DEFAULT_UNLOADING_LAYOUT.ship.restCenterX),
-    ).toBeLessThan(DEFAULT_UNLOADING_LAYOUT.ship.halfWidth);
+    expect(Math.abs(settled.x - ship.restCenterX)).toBeLessThan(ship.halfWidth);
+    // On the hold floor at rest: center ≈ floorY - halfHeight (Y-down).
+    // Larger continuous waves move the floor, so allow a generous heave band.
+    const floorRestY = ship.restCenterY + ship.holdFloorOffsetY - cask.halfHeight;
+    expect(settled.y).toBeGreaterThan(floorRestY - 1.6);
+    expect(settled.y).toBeLessThan(floorRestY + 1.6);
     world.free();
   });
 
   it("reports non-zero instruments while swinging", async () => {
     const rapier = await initRapier();
-    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "hud-seed");
+    const noWind = {
+      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
+      baseForce: 0.01,
+      maxForceAbs: 1,
+      lockedBaseForce: 0.01,
+      lockedMaxForceAbs: 1,
+      oscWeight: 1,
+    };
+    const world = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "hud-seed",
+      DEFAULT_UNLOADING_LAYOUT,
+      DEFAULT_CRANE_PHYSICS_CONFIG,
+      DEFAULT_LOCK_CONFIG,
+      DEFAULT_INTERLOCK_CONFIG,
+      DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+      noWind,
+    );
     for (let i = 0; i < 120; i += 1) {
       world.step();
     }
@@ -546,7 +680,27 @@ describe("UnloadingScaffoldWorld", () => {
 
   it("lets the spreader settle near the cable target length below the trolley", async () => {
     const rapier = await initRapier();
-    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "hang-seed");
+    // Isolate cable hang from continuous wind (and keep default waves).
+    const noWind = {
+      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
+      baseForce: 0.01,
+      maxForceAbs: 1,
+      lockedBaseForce: 0.01,
+      lockedMaxForceAbs: 1,
+      oscWeight: 1,
+    };
+    const world = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "hang-seed",
+      DEFAULT_UNLOADING_LAYOUT,
+      DEFAULT_CRANE_PHYSICS_CONFIG,
+      DEFAULT_LOCK_CONFIG,
+      DEFAULT_INTERLOCK_CONFIG,
+      DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+      noWind,
+    );
     for (let i = 0; i < 360; i += 1) {
       world.step();
     }
