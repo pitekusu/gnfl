@@ -9,7 +9,10 @@ export interface ResultScreenProps {
   result: StageResult;
   onRetry: () => void;
   onTitle: () => void;
-  /** Optional personal-best hint (C11); omit until wired. */
+  /**
+   * Local personal-best outcome for this browser profile.
+   * true = updated, false = not updated, null = N/A (abort / unavailable).
+   */
   personalBestUpdated?: boolean | null;
 }
 
