@@ -155,6 +155,9 @@ export const CABLE_DRAW_DEPTH = 20;
 /** Depth for berth backdrop plate. */
 export const BERTH_BACKDROP_DEPTH = 0;
 
+/** Animated sea surface lines (above static water fill, below quay/entities). */
+export const SEA_SURFACE_FX_DEPTH = 2;
+
 export function resolveEntityDisplay(kind: EntityKind): EntityDisplayConfig {
   return ENTITY_DISPLAY_BY_KIND[kind] ?? ENTITY_DISPLAY_BY_KIND.unknown;
 }

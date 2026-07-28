@@ -10,6 +10,8 @@ import {
   resolveOverlayDepth,
 } from "@/game/phaser/entityDisplayRegistry";
 import { SnapshotBuffer } from "@/game/phaser/snapshotBuffer";
+import { SEA_SURFACE_FX_DEPTH } from "@/game/phaser/entityDisplayRegistry";
+import { drawSeaSurfaceFx } from "@/game/phaser/seaSurfaceFx";
 import { mountStaticBerthArt } from "@/game/phaser/staticBerthArt";
 import {
   hasUsableTexture,
@@ -67,10 +69,12 @@ export class SimulationScene extends Phaser.Scene {
   private readonly entityOverlays = new Map<string, EntityView>();
   private readonly keyboard = new CraneKeyboardBinder();
   private sceneryGraphics: Phaser.GameObjects.Graphics | null = null;
+  private seaSurfaceGraphics: Phaser.GameObjects.Graphics | null = null;
   private overlayGraphics: Phaser.GameObjects.Graphics | null = null;
   private cableGraphics: Phaser.GameObjects.Graphics | null = null;
   private berthBackdrop: Phaser.GameObjects.Image | null = null;
   private staticGantry: Phaser.GameObjects.Image | null = null;
+  private seaFxElapsedSeconds = 0;
   private statusText: Phaser.GameObjects.Text | null = null;
   private hintText: Phaser.GameObjects.Text | null = null;
   private controlsText: Phaser.GameObjects.Text | null = null;
@@ -104,9 +108,11 @@ export class SimulationScene extends Phaser.Scene {
     this.staticGantry = staticArt.gantry;
     // Water band, rail, bumper stay as graphics until art fully replaces them.
     this.sceneryGraphics = this.add.graphics().setDepth(1);
+    this.seaSurfaceGraphics = this.add.graphics().setDepth(SEA_SURFACE_FX_DEPTH);
     this.overlayGraphics = this.add.graphics().setDepth(9);
     this.cableGraphics = this.add.graphics().setDepth(20);
     drawStaticUnloadingScenery(this.sceneryGraphics);
+    drawSeaSurfaceFx(this.seaSurfaceGraphics, 0);
 
     this.statusText = this.add
       .text(12, 12, "worker: connecting", {
@@ -223,7 +229,13 @@ export class SimulationScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.DESTROY, this.onShutdown, this);
   }
 
-  public override update(): void {
+  public override update(_time: number, delta: number): void {
+    // Display-only sea motion (independent of physics pause so water never freezes hard).
+    this.seaFxElapsedSeconds += Math.min(0.05, Math.max(0, delta / 1000));
+    if (this.seaSurfaceGraphics) {
+      drawSeaSurfaceFx(this.seaSurfaceGraphics, this.seaFxElapsedSeconds);
+    }
+
     if (this.client && this.workerReady) {
       const { input, pausePressed } = this.keyboard.sample();
       if (pausePressed) {
@@ -478,6 +490,8 @@ export class SimulationScene extends Phaser.Scene {
     this.staticGantry = null;
     this.sceneryGraphics?.destroy();
     this.sceneryGraphics = null;
+    this.seaSurfaceGraphics?.destroy();
+    this.seaSurfaceGraphics = null;
     this.overlayGraphics?.destroy();
     this.overlayGraphics = null;
     this.cableGraphics?.destroy();
