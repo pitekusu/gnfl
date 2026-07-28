@@ -5,6 +5,12 @@ import type {
   StagePhase,
 } from "@/game/protocol";
 import { createNeutralPlayerInput } from "@/game/protocol";
+import type { UnloadingMetrics } from "@shared/contracts/unloadingMetrics";
+import {
+  accumulateUnloadingLanding,
+  accumulateUnloadingMetricsTick,
+  createEmptyUnloadingMetrics,
+} from "@shared/scoring/accumulateUnloadingMetrics";
 import type { RapierModule } from "@/game/simulation/rapierInit";
 import type RAPIER from "@dimforge/rapier2d-compat";
 import {
@@ -107,6 +113,12 @@ export class UnloadingScaffoldWorld {
   /** Cask world Y captured when the lock joint engaged (for breakout lift). */
   private lockEngageCaskY: number | null = null;
   private seatStableTicks = 0;
+  /** Run metrics (pure-accumulated); frozen after COMPLETED / SAFE_ABORTED. */
+  private metrics: UnloadingMetrics = createEmptyUnloadingMetrics();
+  private prevCaskVelX = 0;
+  private prevCaskVelY = 0;
+  /** Rising-edge latch so tension cut counts once per continuous trip. */
+  private tensionInterlockLatched = false;
 
   private constructor(
     rapier: RapierModule,
@@ -528,9 +540,16 @@ export class UnloadingScaffoldWorld {
       this.isLockJointActive(),
       this.interlock.unlockedHoistUpSpeedScale,
     );
-    // Extreme tension: cut hoist-up (interlock, not score yet).
+    // Extreme tension: cut hoist-up (counts as equipment interlock trip).
+    let tensionInterlockThisTick = false;
     if (hoistAxis > 0 && this.lastCableTension > this.interlock.maxHoistTension) {
       hoistAxis = 0;
+      if (!this.tensionInterlockLatched) {
+        tensionInterlockThisTick = true;
+        this.tensionInterlockLatched = true;
+      }
+    } else if (this.lastCableTension <= this.interlock.maxHoistTension) {
+      this.tensionInterlockLatched = false;
     }
     this.cableTargetLength = integrateCableTargetLength({
       targetLength: this.cableTargetLength,
@@ -573,7 +592,62 @@ export class UnloadingScaffoldWorld {
       this.updateTraverseAndCradlePhase();
       this.updateSeatingPhase();
       this.updateSafetyAbort();
+      // Metrics after phase updates so landing can be recorded on SEAT_STABLE.
+      this.accumulateMetricsForTick(tensionInterlockThisTick);
     }
+  }
+
+  /**
+   * Sample instruments after the physics step and fold into run metrics.
+   * Collision impulse/count stay 0 until contact-event plumbing (later).
+   */
+  private accumulateMetricsForTick(interlockTripped: boolean): void {
+    const caskV = this.caskBody.linvel();
+    const dvx = caskV.x - this.prevCaskVelX;
+    const dvy = caskV.y - this.prevCaskVelY;
+    const caskAcceleration =
+      this.physicsDtSeconds > 0 ? Math.hypot(dvx, dvy) / this.physicsDtSeconds : 0;
+    this.prevCaskVelX = caskV.x;
+    this.prevCaskVelY = caskV.y;
+
+    const instruments = this.sampleInstrumentMagnitudes();
+    this.metrics = accumulateUnloadingMetricsTick(this.metrics, {
+      sway: instruments.sway,
+      cableLoad: instruments.cableLoad,
+      caskAcceleration,
+      interlockTripped,
+    });
+  }
+
+  private sampleInstrumentMagnitudes(): { sway: number; cableLoad: number } {
+    const spreader = this.spreaderBody.translation();
+    const spreaderVel = this.spreaderBody.linvel();
+    const lateralSway = Math.abs(spreader.x - this.trolleyX);
+    const speedSway = Math.hypot(spreaderVel.x, spreaderVel.y);
+    const stretchLoad = Math.max(
+      0,
+      (this.lastCableLength - this.cableTargetLength) * this.physics.cable.stiffness,
+    );
+    return {
+      sway: lateralSway + speedSway * 0.25,
+      cableLoad: Math.max(this.lastCableTension, stretchLoad),
+    };
+  }
+
+  private recordLandingMetricsFromSeating(): void {
+    const seating = this.evaluateCurrentCradleSeating();
+    const caskV = this.caskBody.linvel();
+    this.metrics = accumulateUnloadingLanding(this.metrics, {
+      positionError: seating.horizontalError,
+      angleError: seating.angleErrorRad,
+      verticalSpeed: Math.abs(caskV.y),
+      horizontalSpeed: Math.abs(caskV.x),
+    });
+  }
+
+  /** Current run metrics (copy) for scoring / tests. */
+  public getMetrics(): UnloadingMetrics {
+    return { ...this.metrics };
   }
 
   private updateLockAlignmentAndPhase(): void {
@@ -785,6 +859,8 @@ export class UnloadingScaffoldWorld {
 
     if (this.seatStableTicks >= this.interlock.seatStableTicks) {
       this.seatStableTicks = 0;
+      // Capture landing snapshot once at acceptance (before COMPLETE_CONFIRMED).
+      this.recordLandingMetricsFromSeating();
       this.dispatchStageEvent({ type: "SEAT_STABLE" });
       // Drop / free seating completes immediately; locked seating waits for unlock.
       if (!this.caskLocked) {
@@ -974,17 +1050,8 @@ export class UnloadingScaffoldWorld {
     const ship = this.shipBody.translation();
     const trolley = this.trolleyBody.translation();
     const spreader = this.spreaderBody.translation();
-    const spreaderVel = this.spreaderBody.linvel();
     const cask = this.caskBody.translation();
-    // Lateral offset from trolley is the readable "振れ" for players (not just velocity).
-    const lateralSway = Math.abs(spreader.x - this.trolleyX);
-    const speedSway = Math.hypot(spreaderVel.x, spreaderVel.y);
-    // Prefer measured spring tension; if nearly slack at equilibrium, show stretch load.
-    const stretchLoad = Math.max(
-      0,
-      (this.lastCableLength - this.cableTargetLength) * this.physics.cable.stiffness,
-    );
-    const cableLoad = Math.max(this.lastCableTension, stretchLoad);
+    const instruments = this.sampleInstrumentMagnitudes();
 
     return {
       tick,
@@ -1049,9 +1116,9 @@ export class UnloadingScaffoldWorld {
       ],
       cables: this.lastCables,
       instruments: {
-        cableLoad,
+        cableLoad: instruments.cableLoad,
         // Displacement-dominant so the HUD moves when the load swings.
-        sway: lateralSway + speedSway * 0.25,
+        sway: instruments.sway,
         lockReady: this.lockReady,
         locked: this.caskLocked,
       },
