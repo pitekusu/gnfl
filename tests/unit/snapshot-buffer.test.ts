@@ -12,6 +12,7 @@ function makeSnapshot(
     tick,
     generatedAtMs,
     stagePhase: "READY",
+    abortReason: null,
     entities: [
       {
         id: "demo-box",

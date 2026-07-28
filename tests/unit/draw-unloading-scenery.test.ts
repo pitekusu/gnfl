@@ -37,6 +37,7 @@ describe("drawUnloadingScenery", () => {
       tick: 1,
       generatedAtMs: 0,
       stagePhase: "READY",
+      abortReason: null,
       entities: [
         {
           id: "ship",

@@ -19,6 +19,7 @@ export function PhaserGame() {
   const [sway, setSway] = useState(0);
   const [cableLoad, setCableLoad] = useState(0);
   const [stagePhase, setStagePhase] = useState("READY");
+  const [abortReason, setAbortReason] = useState<string | null>(null);
   const [lockReady, setLockReady] = useState(false);
   const [locked, setLocked] = useState(false);
 
@@ -51,6 +52,11 @@ export function PhaserGame() {
               setCableLoad(payload.cableLoad);
               setLockReady(Boolean(payload.lockReady));
               setLocked(Boolean(payload.locked));
+              setAbortReason(
+                payload.abortReason != null && payload.abortReason !== ""
+                  ? payload.abortReason
+                  : null,
+              );
               // Never allow undefined/empty to wipe the phase row.
               setStagePhase(
                 payload.stagePhase != null && payload.stagePhase !== ""
@@ -96,6 +102,9 @@ export function PhaserGame() {
           <span className="game-hud-label">工程</span>
           <span className="game-hud-value game-hud-phase" data-testid="hud-stage-phase">
             {formatStagePhaseHud(stagePhase)}
+            {stagePhase === "SAFE_ABORTED" && abortReason
+              ? ` · ${abortReason}`
+              : ""}
           </span>
         </div>
         <div className="game-hud-row">

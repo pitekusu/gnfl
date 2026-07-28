@@ -54,6 +54,8 @@ export interface RenderSnapshot {
   tick: number;
   generatedAtMs: number;
   stagePhase: StagePhase;
+  /** Set when stagePhase is SAFE_ABORTED. */
+  abortReason: string | null;
   entities: ReadonlyArray<RenderEntityState>;
   cables: ReadonlyArray<CableRenderState>;
   instruments: InstrumentState;
@@ -68,6 +70,7 @@ export function createEmptyRenderSnapshot(
     tick,
     generatedAtMs,
     stagePhase: "READY",
+    abortReason: null,
     entities: [],
     cables: [],
     instruments: { cableLoad: 0, sway: 0, lockReady: false, locked: false },

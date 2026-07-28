@@ -28,6 +28,7 @@ export type SimulationStatusPayload =
       sway: number;
       cableLoad: number;
       stagePhase: string;
+      abortReason: string | null;
       lockReady: boolean;
       locked: boolean;
     };
@@ -139,6 +140,7 @@ export class SimulationScene extends Phaser.Scene {
                 sway: message.snapshot.instruments.sway,
                 cableLoad: message.snapshot.instruments.cableLoad,
                 stagePhase: message.snapshot.stagePhase ?? "READY",
+                abortReason: message.snapshot.abortReason ?? null,
                 lockReady: message.snapshot.instruments.lockReady ?? false,
                 locked: message.snapshot.instruments.locked ?? false,
               });
@@ -201,6 +203,7 @@ export class SimulationScene extends Phaser.Scene {
         sway: sample.snapshot.instruments.sway,
         cableLoad: sample.snapshot.instruments.cableLoad,
         stagePhase: sample.snapshot.stagePhase ?? "READY",
+        abortReason: sample.snapshot.abortReason ?? null,
         lockReady: sample.snapshot.instruments.lockReady ?? false,
         locked: sample.snapshot.instruments.locked ?? false,
       });

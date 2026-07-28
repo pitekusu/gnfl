@@ -84,6 +84,7 @@ export class GreyboxDemoWorld {
       tick,
       generatedAtMs,
       stagePhase: "READY",
+      abortReason: null,
       entities: [
         {
           id: GreyboxDemoWorld.FLOOR_ID,

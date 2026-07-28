@@ -86,6 +86,64 @@ describe("UnloadingScaffoldWorld", () => {
     world.free();
   });
 
+  it("safe-aborts on emergency stop (E)", async () => {
+    const rapier = await initRapier();
+    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "estop-seed");
+    world.step();
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      emergencyStopPressed: true,
+    });
+    world.step();
+    expect(world.getStagePhase()).toBe("SAFE_ABORTED");
+    expect(world.getAbortReason()).toBe("E_STOP");
+    expect(world.buildSnapshot(2, 0).abortReason).toBe("E_STOP");
+    // Control is frozen after abort.
+    const x0 = world.getTrolleyX();
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      trolleyAxis: 1,
+    });
+    for (let i = 0; i < 60; i += 1) {
+      world.step();
+    }
+    expect(world.getTrolleyX()).toBeCloseTo(x0, 3);
+    world.free();
+  });
+
+  it("safe-aborts when the cask leaves world bounds", async () => {
+    const rapier = await initRapier();
+    const interlock = {
+      ...DEFAULT_INTERLOCK_CONFIG,
+      worldBounds: {
+        minX: -1,
+        maxX: 1,
+        minY: -1,
+        maxY: 1,
+      },
+    };
+    const world = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "bounds-seed",
+      DEFAULT_UNLOADING_LAYOUT,
+      undefined,
+      undefined,
+      interlock,
+    );
+    // Cask spawns far outside the tiny bounds → abort on first safety check.
+    for (let i = 0; i < 5; i += 1) {
+      world.step();
+      if (world.getStagePhase() === "SAFE_ABORTED") {
+        break;
+      }
+    }
+    expect(world.getStagePhase()).toBe("SAFE_ABORTED");
+    expect(world.getAbortReason()).toMatch(/OUT_OF_BOUNDS/);
+    world.free();
+  });
+
   it("does not lock when Space is pressed without lockReady", async () => {
     const rapier = await initRapier();
     const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "nolock-seed");

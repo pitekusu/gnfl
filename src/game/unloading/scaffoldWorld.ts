@@ -454,6 +454,12 @@ export class UnloadingScaffoldWorld {
   public step(): void {
     this.tick += 1;
     const elapsedSeconds = this.tick / this.physicsHz;
+    const terminal =
+      this.stage.phase === "COMPLETED" || this.stage.phase === "SAFE_ABORTED";
+
+    // Freeze player control after complete / safe abort.
+    const trolleyAxis = terminal ? 0 : this.control.trolleyAxis;
+    const hoistInput = terminal ? 0 : this.control.hoistAxis;
 
     // Low-clearance trolley limit while a locked load is still inside the hold.
     const shipY = this.shipBody.translation().y;
@@ -468,7 +474,7 @@ export class UnloadingScaffoldWorld {
     const trolley = integrateTrolleyOnRail({
       x: this.trolleyX,
       velocity: this.trolleyVelocity,
-      axis: this.control.trolleyAxis,
+      axis: trolleyAxis,
       dtSeconds: this.physicsDtSeconds,
       maxSpeed: trolleyMaxSpeed,
       acceleration: this.physics.trolley.acceleration,
@@ -489,11 +495,15 @@ export class UnloadingScaffoldWorld {
 
     // Hoist: change spring rest length (positive axis shortens = lift).
     // Unlocked hoist-up uses interlock scale (default 1 = can reel cable back).
-    const hoistAxis = applyUnlockedHoistUpInterlock(
-      this.control.hoistAxis,
+    let hoistAxis = applyUnlockedHoistUpInterlock(
+      hoistInput,
       this.isLockJointActive(),
       this.interlock.unlockedHoistUpSpeedScale,
     );
+    // Extreme tension: cut hoist-up (interlock, not score yet).
+    if (hoistAxis > 0 && this.lastCableTension > this.interlock.maxHoistTension) {
+      hoistAxis = 0;
+    }
     this.cableTargetLength = integrateCableTargetLength({
       targetLength: this.cableTargetLength,
       axis: hoistAxis,
@@ -524,12 +534,15 @@ export class UnloadingScaffoldWorld {
     this.world.timestep = this.physicsDtSeconds;
     this.world.step();
 
-    this.updateLockAlignmentAndPhase();
-    this.tryLockOrUnlockFromInput();
-    this.updateBreakoutLiftPhase();
-    this.updateClearOfHoldPhase();
-    this.updateTraverseAndCradlePhase();
-    this.updateSeatingPhase();
+    if (!terminal) {
+      this.updateLockAlignmentAndPhase();
+      this.tryLockOrUnlockFromInput();
+      this.updateBreakoutLiftPhase();
+      this.updateClearOfHoldPhase();
+      this.updateTraverseAndCradlePhase();
+      this.updateSeatingPhase();
+      this.updateSafetyAbort();
+    }
   }
 
   private updateLockAlignmentAndPhase(): void {
@@ -762,6 +775,57 @@ export class UnloadingScaffoldWorld {
     });
   }
 
+  /**
+   * E-stop, world-bounds escape, and physics runaway → SAFE_ABORTED.
+   */
+  private updateSafetyAbort(): void {
+    if (
+      this.stage.phase === "COMPLETED" ||
+      this.stage.phase === "SAFE_ABORTED"
+    ) {
+      return;
+    }
+
+    if (this.control.emergencyStopPressed) {
+      this.control = { ...this.control, emergencyStopPressed: false };
+      this.dispatchStageEvent({ type: "SAFE_ABORT", reason: "E_STOP" });
+      this.trolleyVelocity = 0;
+      return;
+    }
+
+    const bounds = this.interlock.worldBounds;
+    const bodies = [
+      { name: "spreader", body: this.spreaderBody },
+      { name: "cask", body: this.caskBody },
+    ] as const;
+    for (const { name, body } of bodies) {
+      const t = body.translation();
+      const v = body.linvel();
+      const speed = Math.hypot(v.x, v.y);
+      if (speed > this.interlock.maxBodySpeed) {
+        this.dispatchStageEvent({
+          type: "SAFE_ABORT",
+          reason: `RUNAWAY_${name.toUpperCase()}`,
+        });
+        this.trolleyVelocity = 0;
+        return;
+      }
+      if (
+        t.x < bounds.minX ||
+        t.x > bounds.maxX ||
+        t.y < bounds.minY ||
+        t.y > bounds.maxY
+      ) {
+        this.dispatchStageEvent({
+          type: "SAFE_ABORT",
+          reason: `OUT_OF_BOUNDS_${name.toUpperCase()}`,
+        });
+        this.trolleyVelocity = 0;
+        return;
+      }
+    }
+  }
+
   private createLockJoint(): void {
     // Close residual face gap so the joint does not freeze an air pocket.
     this.snapSpreaderToCaskLockPose();
@@ -867,6 +931,7 @@ export class UnloadingScaffoldWorld {
       tick,
       generatedAtMs,
       stagePhase: this.stage.phase,
+      abortReason: this.stage.abortReason,
       entities: [
         {
           id: UnloadingScaffoldWorld.SHIP_ID,

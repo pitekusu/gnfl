@@ -109,6 +109,7 @@ export function interpolateSnapshots(
     tick: current.tick,
     generatedAtMs: lerp(previous.generatedAtMs, current.generatedAtMs, t),
     stagePhase: current.stagePhase,
+    abortReason: current.abortReason,
     entities,
     cables,
     instruments: {
