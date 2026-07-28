@@ -17,8 +17,8 @@ describe("windEnvironmentConfig", () => {
   });
 
   it("uses mild pre-lock force and stronger locked force", () => {
-    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeGreaterThan(10);
-    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeLessThan(30);
+    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeGreaterThan(4);
+    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeLessThan(15);
     expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.lockedBaseForce).toBeGreaterThan(
       DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce,
     );

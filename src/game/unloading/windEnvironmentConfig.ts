@@ -43,8 +43,8 @@ export type WindEnvironmentConfig = z.infer<typeof windEnvironmentConfigSchema>;
 
 export const DEFAULT_WIND_ENVIRONMENT_CONFIG: WindEnvironmentConfig =
   windEnvironmentConfigSchema.parse({
-    // Mild pre-lock so lock alignment is not a wrestling match.
-    baseForce: 16,
+    // Very mild pre-lock so alignment stays easy (empty spreader is light).
+    baseForce: 8,
     // ~0.35 Hz horizontal push that must visit both signs.
     oscFrequency: 2.15,
     oscWeight: 0.55,
@@ -57,7 +57,7 @@ export const DEFAULT_WIND_ENVIRONMENT_CONFIG: WindEnvironmentConfig =
     directionBias: 0,
     baseDirectionX: -1,
     verticalCoupling: 0.03,
-    maxForceAbs: 26,
+    maxForceAbs: 14,
     // Post-lock: strong transport push on the hanging load.
     lockedBaseForce: 80,
     lockedMaxForceAbs: 120,
