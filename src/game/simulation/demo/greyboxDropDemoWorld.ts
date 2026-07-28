@@ -105,7 +105,7 @@ export class GreyboxDemoWorld {
         },
       ],
       cables: [],
-      instruments: { cableLoad: 0, sway: 0, lockReady: false },
+      instruments: { cableLoad: 0, sway: 0, lockReady: false, locked: false },
       weather: { windHint: 0, waveHint: 0 },
     };
   }

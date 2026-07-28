@@ -79,6 +79,7 @@ describe("UnloadingScaffoldWorld", () => {
     expect(world.getStagePhase()).toBe("LOCKED");
     expect(world.buildSnapshot(100, 0).stagePhase).toBe("LOCKED");
     expect(world.isLockReady()).toBe(false);
+    expect(world.buildSnapshot(100, 0).instruments.locked).toBe(true);
 
     // Space without readiness should not create a second joint path — already locked.
     world.setControlInput({

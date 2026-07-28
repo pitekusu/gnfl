@@ -275,6 +275,10 @@ button {
   color: #7dffa0;
 }
 
+.game-hud-lock-active {
+  color: #5ec8ff;
+}
+
 .game-hud-lock-wait {
   color: #8a9bab;
 }

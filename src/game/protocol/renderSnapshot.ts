@@ -42,6 +42,8 @@ export interface InstrumentState {
   sway: number;
   /** True when spreader–cask alignment is stable enough to lock (Space). */
   lockReady: boolean;
+  /** True while the spreader–cask fixed joint is engaged. */
+  locked: boolean;
 }
 
 /**
@@ -68,7 +70,7 @@ export function createEmptyRenderSnapshot(
     stagePhase: "READY",
     entities: [],
     cables: [],
-    instruments: { cableLoad: 0, sway: 0, lockReady: false },
+    instruments: { cableLoad: 0, sway: 0, lockReady: false, locked: false },
     weather: { windHint: 0, waveHint: 0 },
   };
 }

@@ -888,6 +888,7 @@ export class UnloadingScaffoldWorld {
         // Displacement-dominant so the HUD moves when the load swings.
         sway: lateralSway + speedSway * 0.25,
         lockReady: this.lockReady,
+        locked: this.isLockJointActive(),
       },
       weather: {
         windHint: 0,

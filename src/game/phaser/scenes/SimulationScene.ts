@@ -29,6 +29,7 @@ export type SimulationStatusPayload =
       cableLoad: number;
       stagePhase: string;
       lockReady: boolean;
+      locked: boolean;
     };
 
 /**
@@ -139,6 +140,7 @@ export class SimulationScene extends Phaser.Scene {
                 cableLoad: message.snapshot.instruments.cableLoad,
                 stagePhase: message.snapshot.stagePhase ?? "READY",
                 lockReady: message.snapshot.instruments.lockReady ?? false,
+                locked: message.snapshot.instruments.locked ?? false,
               });
             }
             if (this.client?.isPausedByUser()) {
@@ -200,6 +202,7 @@ export class SimulationScene extends Phaser.Scene {
         cableLoad: sample.snapshot.instruments.cableLoad,
         stagePhase: sample.snapshot.stagePhase ?? "READY",
         lockReady: sample.snapshot.instruments.lockReady ?? false,
+        locked: sample.snapshot.instruments.locked ?? false,
       });
     }
   }
