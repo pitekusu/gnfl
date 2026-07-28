@@ -20,7 +20,7 @@ test("title screen opens and simulation worker becomes ready", async ({ page }) 
 
   // React HUD overlays (not Phaser camera text).
   await expect(page.getByTestId("game-hud")).toBeVisible();
-  await expect(page.getByTestId("hud-stage-phase")).toHaveText("READY", {
+  await expect(page.getByTestId("hud-stage-phase")).toContainText("READY", {
     timeout: 15_000,
   });
   await expect(page.getByTestId("hud-sway")).toBeVisible();

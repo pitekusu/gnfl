@@ -263,9 +263,12 @@ button {
 }
 
 .game-hud-phase {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   letter-spacing: 0.02em;
   color: #9ed0ff;
+  max-width: 12rem;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .fine-mode-badge {

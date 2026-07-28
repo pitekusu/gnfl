@@ -131,7 +131,7 @@ export class SimulationScene extends Phaser.Scene {
                 kind: "hud",
                 sway: message.snapshot.instruments.sway,
                 cableLoad: message.snapshot.instruments.cableLoad,
-                stagePhase: message.snapshot.stagePhase,
+                stagePhase: message.snapshot.stagePhase ?? "READY",
               });
             }
             if (this.client?.isPausedByUser()) {
@@ -191,7 +191,7 @@ export class SimulationScene extends Phaser.Scene {
         kind: "hud",
         sway: sample.snapshot.instruments.sway,
         cableLoad: sample.snapshot.instruments.cableLoad,
-        stagePhase: sample.snapshot.stagePhase,
+        stagePhase: sample.snapshot.stagePhase ?? "READY",
       });
     }
   }

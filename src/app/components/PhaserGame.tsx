@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type Phaser from "phaser";
 import { createGame } from "@/game/phaser/createGame";
+import { formatStagePhaseHud } from "@/game/unloading/stagePhaseLabels";
 
 /**
  * Hosts Phaser. Only low-frequency simulation status crosses into React state.
@@ -43,7 +44,12 @@ export function PhaserGame() {
             if (payload.kind === "hud") {
               setSway(payload.sway);
               setCableLoad(payload.cableLoad);
-              setStagePhase(payload.stagePhase);
+              // Never allow undefined/empty to wipe the phase row.
+              setStagePhase(
+                payload.stagePhase != null && payload.stagePhase !== ""
+                  ? payload.stagePhase
+                  : "READY",
+              );
               return;
             }
             if (payload.status === "error") {
@@ -82,7 +88,7 @@ export function PhaserGame() {
         <div className="game-hud-row">
           <span className="game-hud-label">工程</span>
           <span className="game-hud-value game-hud-phase" data-testid="hud-stage-phase">
-            {stagePhase}
+            {formatStagePhaseHud(stagePhase)}
           </span>
         </div>
         <div className="game-hud-row">
