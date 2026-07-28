@@ -7,38 +7,31 @@ import {
 
 describe("sampleWind", () => {
   it("is deterministic for seed + time", () => {
-    const a = sampleWind("berth", 4.5);
-    const b = sampleWind("berth", 4.5);
-    expect(a).toEqual(b);
+    expect(sampleWind("berth", 4.5)).toEqual(sampleWind("berth", 4.5));
   });
 
   it("changes over time", () => {
-    const a = sampleWind("berth", 0);
-    const b = sampleWind("berth", 3);
-    expect(a.forceX === b.forceX).toBe(false);
+    expect(sampleWind("berth", 0).forceX).not.toBe(sampleWind("berth", 2.5).forceX);
   });
 
-  it("respects maxForceAbs clamp", () => {
+  it("respects maxForceAbs", () => {
     const tight: WindEnvironmentConfig = {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
       baseForce: 200,
-      maxForceAbs: 40,
+      maxForceAbs: 35,
     };
     for (let i = 0; i < 40; i += 1) {
-      const w = sampleWind("clamp", i * 0.4, tight);
-      expect(Math.abs(w.forceX)).toBeLessThanOrEqual(40 + 1e-9);
+      expect(Math.abs(sampleWind("c", i * 0.3, tight).forceX)).toBeLessThanOrEqual(
+        35 + 1e-9,
+      );
     }
   });
 
-  it("spends time both left and right with low direction bias", () => {
-    const config: WindEnvironmentConfig = {
-      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
-      directionBias: 0,
-    };
+  it("spends substantial time both left and right", () => {
     let neg = 0;
     let pos = 0;
-    for (let i = 0; i < 600; i += 1) {
-      const fx = sampleWind("both", i * 0.15, config).forceX;
+    for (let i = 0; i < 400; i += 1) {
+      const fx = sampleWind("phase2-greybox", i * 0.05).forceX;
       if (fx < 0) {
         neg += 1;
       }
@@ -46,45 +39,49 @@ describe("sampleWind", () => {
         pos += 1;
       }
     }
-    expect(neg).toBeGreaterThan(80);
-    expect(pos).toBeGreaterThan(80);
+    // Sine-led driver: both sides should appear often (not 90/10).
+    expect(neg).toBeGreaterThan(100);
+    expect(pos).toBeGreaterThan(100);
+    expect(Math.abs(neg - pos)).toBeLessThan(220);
   });
 
-  it("keeps |force| from collapsing to near-zero most of the time", () => {
-    const minAbs =
-      DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce *
-      DEFAULT_WIND_ENVIRONMENT_CONFIG.minSignedAbs *
-      0.9;
-    let ok = 0;
-    for (let i = 0; i < 200; i += 1) {
-      if (Math.abs(sampleWind("mag", i * 0.2).forceX) >= minAbs) {
-        ok += 1;
+  it("reverses many times (not stuck on one side)", () => {
+    let flips = 0;
+    let prev = Math.sign(sampleWind("phase2-greybox", 0).forceX);
+    for (let i = 1; i < 500; i += 1) {
+      const s = Math.sign(sampleWind("phase2-greybox", i * 0.05).forceX);
+      if (s !== 0 && prev !== 0 && s !== prev) {
+        flips += 1;
+      }
+      if (s !== 0) {
+        prev = s;
       }
     }
-    expect(ok).toBeGreaterThan(160);
+    // ~0.35 Hz sine ⇒ many half-cycles in 25s of samples.
+    expect(flips).toBeGreaterThan(10);
   });
 
-  it("locks lean when directionBias is 1", () => {
+  it("can lean one way when directionBias is high", () => {
     const config: WindEnvironmentConfig = {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
+      directionBias: 0.35,
       baseDirectionX: -1,
-      directionBias: 1,
+      oscWeight: 0.3,
     };
-    for (let i = 0; i < 30; i += 1) {
-      expect(sampleSignedDriver("bias", i * 0.3, config)).toBeLessThan(0);
-      expect(sampleWind("bias", i * 0.3, config).forceX).toBeLessThan(0);
+    let neg = 0;
+    for (let i = 0; i < 200; i += 1) {
+      if (sampleSignedDriver("lean", i * 0.1, config) < 0) {
+        neg += 1;
+      }
     }
+    expect(neg).toBeGreaterThan(110);
   });
 
   it("applies vertical coupling from |forceX|", () => {
-    const config: WindEnvironmentConfig = {
+    const w = sampleWind("vert", 1.0, {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
-      directionBias: 1,
-      baseDirectionX: 1,
       verticalCoupling: 0.1,
-    };
-    const w = sampleWind("vert", 2.5, config);
-    expect(w.forceX).toBeGreaterThan(0);
+    });
     expect(w.forceY).toBeCloseTo(Math.abs(w.forceX) * 0.1, 5);
   });
 });

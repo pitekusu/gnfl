@@ -57,15 +57,14 @@ describe("UnloadingScaffoldWorld", () => {
     const calmWind = {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
       baseForce: 0.01,
-      minSignedAbs: 0,
-      directionBias: 1,
       maxForceAbs: 1,
+      oscWeight: 1,
+      directionBias: 0,
     };
     const strongWind = {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
-      baseForce: 100,
-      minSignedAbs: 0.5,
-      maxForceAbs: 160,
+      baseForce: 95,
+      maxForceAbs: 140,
     };
     const calm = UnloadingScaffoldWorld.create(
       rapier,
@@ -319,9 +318,8 @@ describe("UnloadingScaffoldWorld", () => {
     const noWind = {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
       baseForce: 0.01,
-      minSignedAbs: 0,
-      directionBias: 1,
       maxForceAbs: 1,
+      oscWeight: 1,
     };
     const world = UnloadingScaffoldWorld.create(
       rapier,
@@ -397,9 +395,8 @@ describe("UnloadingScaffoldWorld", () => {
     const noWind = {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
       baseForce: 0.01,
-      minSignedAbs: 0,
-      directionBias: 1,
       maxForceAbs: 1,
+      oscWeight: 1,
     };
     const world = UnloadingScaffoldWorld.create(
       rapier,
@@ -616,7 +613,24 @@ describe("UnloadingScaffoldWorld", () => {
 
   it("reports non-zero instruments while swinging", async () => {
     const rapier = await initRapier();
-    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "hud-seed");
+    const noWind = {
+      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
+      baseForce: 0.01,
+      maxForceAbs: 1,
+      oscWeight: 1,
+    };
+    const world = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "hud-seed",
+      DEFAULT_UNLOADING_LAYOUT,
+      DEFAULT_CRANE_PHYSICS_CONFIG,
+      DEFAULT_LOCK_CONFIG,
+      DEFAULT_INTERLOCK_CONFIG,
+      DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+      noWind,
+    );
     for (let i = 0; i < 120; i += 1) {
       world.step();
     }
@@ -660,9 +674,8 @@ describe("UnloadingScaffoldWorld", () => {
     const noWind = {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
       baseForce: 0.01,
-      minSignedAbs: 0,
-      directionBias: 1,
       maxForceAbs: 1,
+      oscWeight: 1,
     };
     const world = UnloadingScaffoldWorld.create(
       rapier,

@@ -15,9 +15,11 @@ describe("windEnvironmentConfig", () => {
     ).not.toThrow();
   });
 
-  it("uses a moderate base force (not extreme)", () => {
+  it("uses moderate force and zero default direction bias", () => {
     expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeGreaterThan(40);
-    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeLessThan(100);
+    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeLessThan(90);
+    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.directionBias).toBe(0);
+    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.oscWeight).toBeGreaterThan(0.4);
   });
 
   it("rejects invalid baseDirectionX", () => {
@@ -29,22 +31,12 @@ describe("windEnvironmentConfig", () => {
     ).toThrow();
   });
 
-  it("rejects baseForce above maxForceAbs via invariant", () => {
+  it("rejects baseForce above maxForceAbs", () => {
     const bad = windEnvironmentConfigSchema.parse({
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
-      baseForce: 200,
+      baseForce: 150,
       maxForceAbs: 100,
     });
     expect(() => assertWindEnvironmentConfigInvariants(bad)).toThrow(/baseForce/);
-  });
-
-  it("rejects all-zero band weights via invariant", () => {
-    const bad = windEnvironmentConfigSchema.parse({
-      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
-      slowWeight: 0,
-      midWeight: 0,
-      fastWeight: 0,
-    });
-    expect(() => assertWindEnvironmentConfigInvariants(bad)).toThrow(/weights/);
   });
 });
