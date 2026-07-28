@@ -42,8 +42,8 @@ lock on the cask, lift clear of the hold, seat on the quay cradle.
 
 ### Not yet
 
-Weather events (Phase 4), scoring / results (5), ranking API / AWS deploy (6–7),
-final art (8).
+Larger continuous waves + always-on wind (next PR; no discrete weather events),
+scoring / results (5), ranking API / AWS deploy (6–7), final art (8).
 
 ## Controls (Phase 3)
 
