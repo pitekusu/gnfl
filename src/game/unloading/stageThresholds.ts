@@ -21,26 +21,36 @@ export function holdMouthLocalY(
 }
 
 /**
- * World Y the cask center must rise above (when ship is at rest pose)
- * to count as clear-of-hold. Later commits can recompute with live ship heave.
+ * World Y threshold for cask center (Y-down): clear when centerY <= this value.
+ * Uses live ship world Y so heave moves the hold mouth with the hull.
  */
+export function clearOfHoldCaskCenterY(
+  shipWorldY: number,
+  layout: UnloadingLayout = DEFAULT_UNLOADING_LAYOUT,
+  interlock: InterlockConfig = DEFAULT_INTERLOCK_CONFIG,
+): number {
+  const mouthWorldY = shipWorldY + holdMouthLocalY(layout);
+  // Y-down: smaller Y is higher. Threshold is above the mouth by margin + half cask
+  // so the cask body (not just its top) is clear of the hold opening.
+  return mouthWorldY - interlock.clearOfHoldMargin - layout.cask.halfHeight;
+}
+
+/** Rest-pose convenience (ship not heaving). */
 export function clearOfHoldCaskCenterYRest(
   layout: UnloadingLayout = DEFAULT_UNLOADING_LAYOUT,
   interlock: InterlockConfig = DEFAULT_INTERLOCK_CONFIG,
 ): number {
-  const mouthWorldY = layout.ship.restCenterY + holdMouthLocalY(layout);
-  // Cask center clears when bottom is above mouth: centerY - halfHeight < mouth
-  // ⇒ centerY < mouth + halfHeight for "still in hold" on Y-down...
-  // Clear when cask bottom is above mouth: centerY - halfHeight is smaller than mouth.
-  // bottom = centerY - halfHeight (top of object toward -Y).
-  // Clear: bottom < mouthWorldY - margin  ⇒ centerY < mouthWorldY - margin + halfHeight
-  // Actually Y-down: smaller Y is higher in the sky.
-  // Mouth is near top of hold opening.
-  // Cask is clear when its bottom (centerY - halfHeight) is above mouth (smaller Y than mouth).
-  // bottom < mouth - margin  ⇒ centerY - halfH < mouth - margin
-  // ⇒ centerY < mouth - margin + halfH
-  // For "must be above threshold" we want centerY <= clearThreshold for clear.
-  return mouthWorldY - interlock.clearOfHoldMargin - layout.cask.halfHeight;
+  return clearOfHoldCaskCenterY(layout.ship.restCenterY, layout, interlock);
+}
+
+/** True when the cask center is high enough to count as clear of the hold. */
+export function isCaskClearOfHold(
+  caskCenterY: number,
+  shipWorldY: number,
+  layout: UnloadingLayout = DEFAULT_UNLOADING_LAYOUT,
+  interlock: InterlockConfig = DEFAULT_INTERLOCK_CONFIG,
+): boolean {
+  return caskCenterY <= clearOfHoldCaskCenterY(shipWorldY, layout, interlock);
 }
 
 /** Cradle top surface Y (world), Y-down. */

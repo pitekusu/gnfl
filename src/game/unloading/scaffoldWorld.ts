@@ -37,6 +37,7 @@ import {
   type StageMachineEvent,
   type StageMachineState,
 } from "@/game/unloading/stageMachine";
+import { isCaskClearOfHold } from "@/game/unloading/stageThresholds";
 import { integrateTrolleyOnRail } from "@/game/unloading/trolleyMotion";
 
 /**
@@ -406,12 +407,22 @@ export class UnloadingScaffoldWorld {
     this.tick += 1;
     const elapsedSeconds = this.tick / this.physicsHz;
 
+    // Low-clearance trolley limit while a locked load is still inside the hold.
+    const shipY = this.shipBody.translation().y;
+    const caskY = this.caskBody.translation().y;
+    const carryingLowInHold =
+      this.isLockJointActive() &&
+      !isCaskClearOfHold(caskY, shipY, this.layout, this.interlock);
+    const trolleyMaxSpeed =
+      this.physics.trolley.maxSpeed *
+      (carryingLowInHold ? this.interlock.lowClearanceTrolleySpeedScale : 1);
+
     const trolley = integrateTrolleyOnRail({
       x: this.trolleyX,
       velocity: this.trolleyVelocity,
       axis: this.control.trolleyAxis,
       dtSeconds: this.physicsDtSeconds,
-      maxSpeed: this.physics.trolley.maxSpeed,
+      maxSpeed: trolleyMaxSpeed,
       acceleration: this.physics.trolley.acceleration,
       axisDeadzone: this.physics.trolley.axisDeadzone,
       fineMode: this.control.fineMode,
@@ -468,6 +479,7 @@ export class UnloadingScaffoldWorld {
     this.updateLockAlignmentAndPhase();
     this.tryEngageLockFromInput();
     this.updateBreakoutLiftPhase();
+    this.updateClearOfHoldPhase();
   }
 
   private updateLockAlignmentAndPhase(): void {
@@ -566,6 +578,20 @@ export class UnloadingScaffoldWorld {
     const lifted = this.lockEngageCaskY - caskY;
     if (lifted >= this.interlock.breakoutLiftDistance) {
       this.dispatchStageEvent({ type: "BREAKOUT_LIFT" });
+    }
+  }
+
+  /**
+   * While LIFTING, clear the hold mouth height → CLEAR_OF_HOLD.
+   */
+  private updateClearOfHoldPhase(): void {
+    if (this.stage.phase !== "LIFTING") {
+      return;
+    }
+    const shipY = this.shipBody.translation().y;
+    const caskY = this.caskBody.translation().y;
+    if (isCaskClearOfHold(caskY, shipY, this.layout, this.interlock)) {
+      this.dispatchStageEvent({ type: "CLEARED_HOLD" });
     }
   }
 

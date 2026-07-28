@@ -135,7 +135,7 @@ describe("UnloadingScaffoldWorld", () => {
     world.free();
   });
 
-  it("lifts the cask with the spreader after lock and enters LIFTING", async () => {
+  it("lifts the cask after lock through LIFTING into CLEAR_OF_HOLD", async () => {
     const rapier = await initRapier();
     const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "lift-seed");
     for (let i = 0; i < 60; i += 1) {
@@ -157,14 +157,67 @@ describe("UnloadingScaffoldWorld", () => {
       ...createNeutralPlayerInput(),
       hoistAxis: 1,
     });
-    for (let i = 0; i < 180; i += 1) {
+
+    let sawLifting = false;
+    for (let i = 0; i < 90; i += 1) {
+      world.step();
+      if (world.getStagePhase() === "LIFTING") {
+        sawLifting = true;
+      }
+    }
+    expect(sawLifting).toBe(true);
+    expect(world.getCaskTranslation().y).toBeLessThan(caskBefore.y - 0.2);
+
+    for (let i = 0; i < 240; i += 1) {
       world.step();
     }
-    const caskAfter = world.getCaskTranslation();
-    // Y-down: lifting moves the locked cask toward the rail (smaller y).
-    expect(caskAfter.y).toBeLessThan(caskBefore.y - 0.3);
-    expect(world.getStagePhase()).toBe("LIFTING");
+    // High enough that the cask center is clear of the hold mouth.
+    expect(world.getStagePhase()).toBe("CLEAR_OF_HOLD");
     world.free();
+  });
+
+  it("slows trolley traverse while locked load is still low in the hold", async () => {
+    const rapier = await initRapier();
+    const freeWorld = UnloadingScaffoldWorld.create(rapier, 18, 120, "trolley-free");
+    const lockedWorld = UnloadingScaffoldWorld.create(rapier, 18, 120, "trolley-locked");
+
+    for (let i = 0; i < 60; i += 1) {
+      freeWorld.step();
+      lockedWorld.step();
+    }
+    for (let i = 0; i < 24; i += 1) {
+      lockedWorld.snapSpreaderToCaskLockPose();
+      lockedWorld.step();
+    }
+    lockedWorld.setControlInput({
+      ...createNeutralPlayerInput(),
+      lockPressed: true,
+    });
+    lockedWorld.step();
+    expect(lockedWorld.isLockJointActive()).toBe(true);
+    expect(lockedWorld.getStagePhase()).toBe("LOCKED");
+
+    const freeStart = freeWorld.getTrolleyX();
+    const lockedStart = lockedWorld.getTrolleyX();
+    freeWorld.setControlInput({
+      ...createNeutralPlayerInput(),
+      trolleyAxis: 1,
+    });
+    lockedWorld.setControlInput({
+      ...createNeutralPlayerInput(),
+      trolleyAxis: 1,
+    });
+    for (let i = 0; i < 90; i += 1) {
+      freeWorld.step();
+      lockedWorld.step();
+    }
+
+    const freeDelta = freeWorld.getTrolleyX() - freeStart;
+    const lockedDelta = lockedWorld.getTrolleyX() - lockedStart;
+    // lowClearanceTrolleySpeedScale default 0.22 → locked traverse much slower.
+    expect(lockedDelta).toBeLessThan(freeDelta * 0.5);
+    freeWorld.free();
+    lockedWorld.free();
   });
 
   it("settles the free cask onto the ship hold floor", async () => {
