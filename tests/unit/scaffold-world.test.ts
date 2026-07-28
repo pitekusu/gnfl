@@ -314,7 +314,25 @@ describe("UnloadingScaffoldWorld", () => {
 
   it("traverses after clear-of-hold and enters LANDING over the cradle", async () => {
     const rapier = await initRapier();
-    const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "traverse-seed");
+    // Stage-path test: calm wind so trolley progress is predictable.
+    const noWind = {
+      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
+      baseForce: 0,
+      variation: 0,
+      jitterMix: 0,
+    };
+    const world = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "traverse-seed",
+      DEFAULT_UNLOADING_LAYOUT,
+      DEFAULT_CRANE_PHYSICS_CONFIG,
+      DEFAULT_LOCK_CONFIG,
+      DEFAULT_INTERLOCK_CONFIG,
+      DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+      noWind,
+    );
     for (let i = 0; i < 60; i += 1) {
       world.step();
     }
@@ -346,17 +364,20 @@ describe("UnloadingScaffoldWorld", () => {
       trolleyAxis: 1,
     });
     let sawTraversing = false;
-    for (let i = 0; i < 900; i += 1) {
+    let sawLanding = false;
+    for (let i = 0; i < 1200; i += 1) {
       world.step();
       const phase = world.getStagePhase();
       if (phase === "TRAVERSING") {
         sawTraversing = true;
       }
       if (phase === "LANDING") {
+        sawLanding = true;
         break;
       }
     }
     expect(sawTraversing).toBe(true);
+    expect(sawLanding).toBe(true);
     expect(world.getStagePhase()).toBe("LANDING");
     expect(
       Math.abs(world.getTrolleyX() - DEFAULT_UNLOADING_LAYOUT.cradle.centerX),

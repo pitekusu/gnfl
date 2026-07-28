@@ -16,11 +16,12 @@ export const windEnvironmentConfigSchema = z.object({
    */
   baseDirectionX: z.union([z.literal(-1), z.literal(1)]),
   /**
-   * How much unit noise scales force around the base.
-   * Instant force ≈ baseForce * baseDirectionX * (1 + variation * (2u - 1)).
-   * Keep variation ≤ 1 so force does not flip sign unless desired for roughness.
+   * How strongly signed noise can override {@link baseDirectionX}.
+   * 0 = constant wind in baseDirectionX only.
+   * 1 = fully bidirectional (left and right over time).
+   * Instant signed driver = baseDirectionX * (1 - variation) + noise * variation.
    */
-  variation: z.number().nonnegative().max(2),
+  variation: z.number().nonnegative().max(1),
   /**
    * Multiplies elapsed seconds for the primary strength noise sample.
    * Lower = slower changes in wind strength.
@@ -56,13 +57,14 @@ export type WindEnvironmentConfig = z.infer<typeof windEnvironmentConfigSchema>;
  */
 export const DEFAULT_WIND_ENVIRONMENT_CONFIG: WindEnvironmentConfig =
   windEnvironmentConfigSchema.parse({
-    baseForce: 45,
+    baseForce: 50,
     baseDirectionX: -1,
-    variation: 0.85,
-    noiseSpeed: 0.12,
+    // High enough that wind clearly reverses left/right over time.
+    variation: 1,
+    noiseSpeed: 0.14,
     noiseLane: 21,
-    jitterSpeed: 0.55,
-    jitterMix: 0.2,
+    jitterSpeed: 0.6,
+    jitterMix: 0.25,
     jitterLane: 22,
     verticalCoupling: 0.05,
     maxForceAbs: 120,
@@ -74,12 +76,9 @@ export function assertWindEnvironmentConfigInvariants(
   if (config.baseForce > config.maxForceAbs) {
     throw new Error("wind baseForce must be <= maxForceAbs");
   }
-  // Peak |scale| ≈ 1 + variation (before clamp).
-  const peakScale = 1 + config.variation;
-  if (config.baseForce * peakScale > config.maxForceAbs * 1.001) {
-    throw new Error(
-      "wind baseForce * (1 + variation) should not greatly exceed maxForceAbs",
-    );
+  // |forceX| peaks near baseForce when |signed| = 1.
+  if (config.baseForce > config.maxForceAbs * 1.001) {
+    throw new Error("wind baseForce must be <= maxForceAbs");
   }
 }
 

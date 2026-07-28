@@ -15,7 +15,7 @@ describe("sampleWind", () => {
   it("changes over time", () => {
     const a = sampleWind("berth", 0);
     const b = sampleWind("berth", 8);
-    expect(a.forceX === b.forceX && a.unit === b.unit).toBe(false);
+    expect(a.forceX === b.forceX && a.signed === b.signed).toBe(false);
   });
 
   it("respects maxForceAbs clamp", () => {
@@ -33,23 +33,44 @@ describe("sampleWind", () => {
     }
   });
 
-  it("keeps mean direction for moderate variation", () => {
+  it("reverses horizontal direction over time with full variation", () => {
     const config: WindEnvironmentConfig = {
       ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
       baseForce: 40,
       baseDirectionX: -1,
-      variation: 0.5,
+      variation: 1,
       maxForceAbs: 100,
       jitterMix: 0,
+      noiseSpeed: 0.2,
     };
-    let negativeCount = 0;
-    for (let i = 0; i < 50; i += 1) {
-      if (sampleWind("dir", i * 0.5, config).forceX < 0) {
-        negativeCount += 1;
+    let sawNeg = false;
+    let sawPos = false;
+    for (let i = 0; i < 400; i += 1) {
+      const fx = sampleWind("flip", i * 0.25, config).forceX;
+      if (fx < 0) {
+        sawNeg = true;
+      }
+      if (fx > 0) {
+        sawPos = true;
       }
     }
-    // variation 0.5 ⇒ scale in [0.5, 1.5], always same sign as baseDirectionX.
-    expect(negativeCount).toBe(50);
+    expect(sawNeg).toBe(true);
+    expect(sawPos).toBe(true);
+  });
+
+  it("keeps base direction only when variation is 0", () => {
+    const config: WindEnvironmentConfig = {
+      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
+      baseForce: 40,
+      baseDirectionX: -1,
+      variation: 0,
+      noiseSpeed: 0.2,
+      jitterMix: 0.3,
+      maxForceAbs: 100,
+    };
+    for (let i = 0; i < 30; i += 1) {
+      expect(sampleWind("fixed", i * 0.5, config).forceX).toBeCloseTo(-40, 5);
+    }
   });
 
   it("applies vertical coupling from |forceX|", () => {
