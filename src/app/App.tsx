@@ -40,7 +40,11 @@ export function App() {
             }}
           />
         ) : (
-          <GameScreen />
+          <GameScreen
+            onTitle={() => {
+              setScreen("title");
+            }}
+          />
         )}
       </main>
     </div>

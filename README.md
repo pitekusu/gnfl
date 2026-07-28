@@ -55,10 +55,24 @@ Always-on environment (no gust/high-wave events, no precursor UI). ADR:
 **Try the feel:** hard-stop after trolley move (swing), Shift for fine positioning,
 lock the cask (wind ramps up), lift clear of the hold, seat on the quay cradle.
 
+### Phase 5 — done (scoring & local results)
+
+ADR: `docs/decisions/0005-phase5-scoring-and-results.md`.
+
+- Collect `UnloadingMetrics` each physics tick (sway, cable load, landing, …)
+- Pure scorer under `shared/` (`unloading-v1` weights / thresholds / grades)
+- Result screen: overall rank + score + five category grades (**no timer**)
+- `SAFE_ABORTED` is not score-submittable
+- Local personal best in `localStorage` (this browser only)
+- Same metrics ⇒ same score (client path; Lambda will reuse the same functions)
+
+Scoring sketch: handling 30% · landing 25% · sway 20% · equipment 15% · efficiency 10%  
+→ `score = round(overall × 1000)` (0–100_000) · ranks S+ … E.
+
 ### Not yet
 
-Scoring / results (Phase 5), ranking API / AWS deploy (6–7), final art (8).
-Water-surface VFX still greybox (static fill only).
+Online ranking API / DynamoDB (Phase 6), AWS domain deploy (7), final art (8),
+threshold balance pass (9). Water-surface VFX still greybox (static fill only).
 
 ## Controls
 
@@ -70,11 +84,12 @@ Water-surface VFX still greybox (static fill only).
 | `S` / `↓` | Hoist down (lengthen cable)                    |
 | `Shift`   | Fine mode（緩速状態）                          |
 | `Space`   | Lock when ready; unlock anywhere (re-lockable) |
-| `E`       | Emergency stop → safe abort                    |
+| `E`       | Emergency stop → safe abort → result screen    |
 | `Esc`     | Pause toggle                                   |
 
 **Complete:** free/drop seating on the cradle finishes immediately; locked seating
-finishes when you unlock on the pad (`Space`).
+finishes when you unlock on the pad (`Space`). Either way opens the **result screen**
+(rank/score, or abort notice). Retry remounts the run; Title returns to the title screen.
 
 ## Development
 
@@ -102,6 +117,9 @@ Useful scripts:
 - `docs/gnfl-ChatGPT-Design-Directive.md` — art / CG / UI appearance directive
 - `docs/decisions/0001-phase1-worker-snapshot-architecture.md`
 - `docs/decisions/0002-phase2-crane-greybox.md`
+- `docs/decisions/0003-phase3-unloading-stage.md`
+- `docs/decisions/0004-continuous-sea-and-wind.md`
+- `docs/decisions/0005-phase5-scoring-and-results.md`
 
 ## Stack (target)
 

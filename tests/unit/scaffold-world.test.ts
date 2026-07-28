@@ -37,6 +37,68 @@ describe("UnloadingScaffoldWorld", () => {
     world.free();
   });
 
+  it("accumulates unloading metrics each physics tick", async () => {
+    const rapier = await initRapier();
+    const noWind = {
+      ...DEFAULT_WIND_ENVIRONMENT_CONFIG,
+      baseForce: 0.01,
+      maxForceAbs: 1,
+      lockedBaseForce: 0.01,
+      lockedMaxForceAbs: 1,
+      oscWeight: 1,
+    };
+    const world = UnloadingScaffoldWorld.create(
+      rapier,
+      18,
+      120,
+      "metrics-wire-seed",
+      DEFAULT_UNLOADING_LAYOUT,
+      DEFAULT_CRANE_PHYSICS_CONFIG,
+      DEFAULT_LOCK_CONFIG,
+      DEFAULT_INTERLOCK_CONFIG,
+      DEFAULT_WAVE_ENVIRONMENT_CONFIG,
+      noWind,
+    );
+    expect(world.getMetrics().elapsedTicks).toBe(0);
+    for (let i = 0; i < 60; i += 1) {
+      world.step();
+    }
+    expect(world.getMetrics().elapsedTicks).toBe(60);
+    expect(world.getMetrics().maximumCableLoad).toBeGreaterThanOrEqual(0);
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      trolleyAxis: 1,
+    });
+    for (let i = 0; i < 90; i += 1) {
+      world.step();
+    }
+    expect(world.getMetrics().elapsedTicks).toBe(150);
+    expect(world.getMetrics().maximumSway).toBeGreaterThan(0.1);
+    // Freeze metrics after abort.
+    world.setControlInput({
+      ...createNeutralPlayerInput(),
+      emergencyStopPressed: true,
+    });
+    world.step();
+    const afterAbort = world.getMetrics().elapsedTicks;
+    expect(world.getStagePhase()).toBe("SAFE_ABORTED");
+    const abortResult = world.buildStageResult();
+    expect(abortResult.aborted).toBe(true);
+    expect(abortResult.completed).toBe(false);
+    expect(abortResult.scoring).toBeNull();
+    expect(abortResult.abortReason).toBe("E_STOP");
+    const snap = world.buildSnapshot(1, 0);
+    expect(snap.stagePhase).toBe("SAFE_ABORTED");
+    expect(snap.terminalResult).not.toBeNull();
+    expect(snap.terminalResult?.aborted).toBe(true);
+    expect(snap.terminalResult?.abortReason).toBe("E_STOP");
+    for (let i = 0; i < 30; i += 1) {
+      world.step();
+    }
+    expect(world.getMetrics().elapsedTicks).toBe(afterAbort);
+    world.free();
+  });
+
   it("writes continuous wave envelope and waveHint into snapshots", async () => {
     const rapier = await initRapier();
     const world = UnloadingScaffoldWorld.create(rapier, 18, 120, "wave-wire-seed");
@@ -475,6 +537,16 @@ describe("UnloadingScaffoldWorld", () => {
     world.step();
     expect(world.isLockJointActive()).toBe(false);
     expect(world.getStagePhase()).toBe("COMPLETED");
+    const result = world.buildStageResult();
+    expect(result.completed).toBe(true);
+    expect(result.aborted).toBe(false);
+    expect(result.seed).toBe("seat-seed");
+    expect(result.rulesetVersion).toBe("unloading-v1");
+    expect(result.metrics.elapsedTicks).toBeGreaterThan(0);
+    expect(result.scoring).not.toBeNull();
+    expect(result.scoring?.score).toBeGreaterThanOrEqual(0);
+    expect(result.scoring?.score).toBeLessThanOrEqual(100_000);
+    expect(result.scoring?.grade).toMatch(/^[SABCDE]\+?$/);
     world.free();
   });
 

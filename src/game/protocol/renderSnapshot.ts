@@ -1,4 +1,5 @@
 import type { StagePhase } from "@/game/protocol/stagePhase";
+import type { StageResult } from "@/game/protocol/stageResult";
 
 /** Plain renderable body state. No Rapier handles. */
 export interface RenderEntityState {
@@ -59,6 +60,11 @@ export interface RenderSnapshot {
   stagePhase: StagePhase;
   /** Set when stagePhase is SAFE_ABORTED. */
   abortReason: string | null;
+  /**
+   * Present when the stage is COMPLETED or SAFE_ABORTED so the main thread can
+   * show the result even if a dedicated COMPLETED/SAFE_ABORT message is missed.
+   */
+  terminalResult: StageResult | null;
   entities: ReadonlyArray<RenderEntityState>;
   cables: ReadonlyArray<CableRenderState>;
   instruments: InstrumentState;
@@ -74,6 +80,7 @@ export function createEmptyRenderSnapshot(
     generatedAtMs,
     stagePhase: "READY",
     abortReason: null,
+    terminalResult: null,
     entities: [],
     cables: [],
     instruments: { cableLoad: 0, sway: 0, lockReady: false, locked: false },

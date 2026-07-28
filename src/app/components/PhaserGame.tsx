@@ -1,19 +1,39 @@
 import { useEffect, useRef, useState } from "react";
 import type Phaser from "phaser";
+import type { StageResult } from "@/game/protocol";
 import { createGame } from "@/game/phaser/createGame";
 import {
   formatStagePhaseHud,
   isLockEngagedStagePhase,
 } from "@/game/unloading/stagePhaseLabels";
+import {
+  formatStageEndBanner,
+  formatStageEndBannerFromPhase,
+} from "@/game/unloading/stageEndBanner";
+import {
+  syntheticAbortStageResult,
+  syntheticCompleteStageResult,
+} from "@/game/unloading/syntheticStageResult";
 import { formatWaveHud, formatWindHud } from "@/game/unloading/weatherHud";
+
+export interface PhaserGameProps {
+  /** Called once when the stage ends (complete or abort). */
+  onStageEnd?: (result: StageResult) => void;
+}
 
 /**
  * Hosts Phaser. Only low-frequency simulation status crosses into React state.
  * Snapshot positions never enter React.
  */
-export function PhaserGame() {
+export function PhaserGame({ onStageEnd }: PhaserGameProps = {}) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
+  const onStageEndRef = useRef(onStageEnd);
+  const stageEndReportedRef = useRef(false);
+
+  useEffect(() => {
+    onStageEndRef.current = onStageEnd;
+  }, [onStageEnd]);
   const [phaserStatus, setPhaserStatus] = useState("initializing");
   const [workerStatus, setWorkerStatus] = useState("idle");
   const [fineMode, setFineMode] = useState(false);
@@ -25,6 +45,8 @@ export function PhaserGame() {
   const [locked, setLocked] = useState(false);
   const [windHint, setWindHint] = useState(0);
   const [waveHint, setWaveHint] = useState(0);
+  /** Full terminal payload when worker/stageEnd arrives (score/grade). */
+  const [stageResult, setStageResult] = useState<StageResult | null>(null);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -70,6 +92,20 @@ export function PhaserGame() {
               );
               return;
             }
+            if (payload.kind === "stageEnd") {
+              setStageResult(payload.result);
+              setStagePhase(
+                payload.result.completed
+                  ? "COMPLETED"
+                  : payload.result.aborted
+                    ? "SAFE_ABORTED"
+                    : "READY",
+              );
+              if (payload.result.abortReason) {
+                setAbortReason(payload.result.abortReason);
+              }
+              return;
+            }
             if (payload.status === "error") {
               setWorkerStatus(payload.detail ?? "error");
               return;
@@ -99,6 +135,38 @@ export function PhaserGame() {
       game?.destroy(true);
     };
   }, []);
+
+  // Notify parent when the stage ends. Full StageResult may arrive after phase HUD.
+  useEffect(() => {
+    const notify = onStageEndRef.current;
+    if (!notify) {
+      return;
+    }
+    if (stageResult) {
+      stageEndReportedRef.current = true;
+      notify(stageResult);
+      return;
+    }
+    if (stageEndReportedRef.current) {
+      return;
+    }
+    if (stagePhase === "SAFE_ABORTED") {
+      stageEndReportedRef.current = true;
+      notify(syntheticAbortStageResult(abortReason));
+      return;
+    }
+    if (stagePhase === "COMPLETED") {
+      // Fallback if worker result never arrives; scoring may be null.
+      stageEndReportedRef.current = true;
+      notify(syntheticCompleteStageResult());
+    }
+  }, [stagePhase, stageResult, abortReason]);
+
+  // Banner must follow HUD phase (proven path). Full StageResult upgrades the text.
+  const phaseBanner = formatStageEndBannerFromPhase(stagePhase, abortReason);
+  const bannerText = stageResult ? formatStageEndBanner(stageResult) : phaseBanner;
+  const bannerVisible = bannerText != null;
+  const bannerAborted = stageResult?.aborted === true || stagePhase === "SAFE_ABORTED";
 
   return (
     <div className="phaser-host" ref={hostRef} data-testid="phaser-host">
@@ -157,6 +225,19 @@ export function PhaserGame() {
       {fineMode ? (
         <div className="fine-mode-badge" data-testid="fine-mode-badge" role="status">
           緩速状態
+        </div>
+      ) : null}
+      {bannerVisible ? (
+        <div
+          className={
+            bannerAborted
+              ? "stage-end-banner stage-end-banner-abort"
+              : "stage-end-banner stage-end-banner-complete"
+          }
+          data-testid="stage-end-banner"
+          role="status"
+        >
+          {bannerText}
         </div>
       ) : null}
       <div className="phaser-status" data-testid="phaser-status">
