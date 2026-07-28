@@ -5,7 +5,10 @@ import {
   drawDynamicUnloadingOverlays,
   drawStaticUnloadingScenery,
 } from "@/game/phaser/drawUnloadingScenery";
-import { resolveEntityDisplay } from "@/game/phaser/entityDisplayRegistry";
+import {
+  resolveEntityDisplay,
+  resolveOverlayDepth,
+} from "@/game/phaser/entityDisplayRegistry";
 import { SnapshotBuffer } from "@/game/phaser/snapshotBuffer";
 import {
   hasUsableTexture,
@@ -59,6 +62,8 @@ export class SimulationScene extends Phaser.Scene {
   private client: SimulationClient | null = null;
   private readonly snapshotBuffer = new SnapshotBuffer();
   private readonly entityViews = new Map<string, EntityView>();
+  /** Optional front layers (ship hatch / cradle posts) sharing the body pose. */
+  private readonly entityOverlays = new Map<string, EntityView>();
   private readonly keyboard = new CraneKeyboardBinder();
   private sceneryGraphics: Phaser.GameObjects.Graphics | null = null;
   private overlayGraphics: Phaser.GameObjects.Graphics | null = null;
@@ -279,6 +284,11 @@ export class SimulationScene extends Phaser.Scene {
       if (!seen.has(id)) {
         view.destroy();
         this.entityViews.delete(id);
+        const overlay = this.entityOverlays.get(id);
+        if (overlay) {
+          overlay.destroy();
+          this.entityOverlays.delete(id);
+        }
       }
     }
     if (this.overlayGraphics) {
@@ -316,15 +326,52 @@ export class SimulationScene extends Phaser.Scene {
     const useTexture = hasUsableTexture(this.textures, display.textureKey);
 
     if (!view) {
-      view = this.createEntityView(entity, display, useTexture);
+      view = this.createEntityView(entity, display, useTexture, "primary");
       this.entityViews.set(entity.id, view);
     } else if (useTexture && view instanceof Phaser.GameObjects.Rectangle) {
       // Texture became available after first frame (or race with preload) — upgrade.
       view.destroy();
-      view = this.createEntityView(entity, display, true);
+      view = this.createEntityView(entity, display, true, "primary");
       this.entityViews.set(entity.id, view);
     }
 
+    this.syncEntityPose(view, entity);
+    this.syncEntityOverlay(entity, display);
+  }
+
+  /**
+   * Ship hatch lip / cradle front posts: same pose as body, higher depth so the
+   * cask (depth 14) sits between hull rear (8) and foreground (16).
+   */
+  private syncEntityOverlay(
+    entity: RenderEntityState,
+    display: ReturnType<typeof resolveEntityDisplay>,
+  ): void {
+    const overlayKey = display.overlayTextureKey;
+    const useOverlay = hasUsableTexture(this.textures, overlayKey);
+    let overlay = this.entityOverlays.get(entity.id);
+
+    if (!useOverlay || !overlayKey) {
+      if (overlay) {
+        overlay.destroy();
+        this.entityOverlays.delete(entity.id);
+      }
+      return;
+    }
+
+    if (!overlay) {
+      overlay = this.createEntityView(entity, display, true, "overlay");
+      this.entityOverlays.set(entity.id, overlay);
+    } else if (overlay instanceof Phaser.GameObjects.Rectangle) {
+      overlay.destroy();
+      overlay = this.createEntityView(entity, display, true, "overlay");
+      this.entityOverlays.set(entity.id, overlay);
+    }
+
+    this.syncEntityPose(overlay, entity);
+  }
+
+  private syncEntityPose(view: EntityView, entity: RenderEntityState): void {
     view.setPosition(worldToDisplayX(entity.x), worldToDisplayY(entity.y));
     view.setDisplaySize(
       worldSizeToDisplay(entity.width),
@@ -337,28 +384,39 @@ export class SimulationScene extends Phaser.Scene {
     entity: RenderEntityState,
     display: ReturnType<typeof resolveEntityDisplay>,
     useTexture: boolean,
+    layer: "primary" | "overlay",
   ): EntityView {
     const x = worldToDisplayX(entity.x);
     const y = worldToDisplayY(entity.y);
     const w = worldSizeToDisplay(entity.width);
     const h = worldSizeToDisplay(entity.height);
+    const textureKey =
+      layer === "overlay" ? display.overlayTextureKey : display.textureKey;
+    const depth =
+      layer === "overlay" ? resolveOverlayDepth(entity.kind) : display.depth;
 
-    if (useTexture && display.textureKey) {
-      const image = this.add.image(x, y, display.textureKey);
+    if (useTexture && textureKey) {
+      const image = this.add.image(x, y, textureKey);
       image.setOrigin(display.originX, display.originY);
       image.setDisplaySize(w, h);
-      image.setDepth(display.depth);
-      if (display.fillAlpha < 1) {
-        image.setAlpha(display.fillAlpha);
-      }
+      image.setDepth(depth);
+      // Textured SVGs already encode transparency; do not force greybox fillAlpha.
       return image;
+    }
+
+    // Overlay has no greybox fallback — only primary bodies draw rectangles.
+    if (layer === "overlay") {
+      const ghost = this.add.rectangle(x, y, 1, 1, 0x000000, 0);
+      ghost.setVisible(false);
+      ghost.setDepth(depth);
+      return ghost;
     }
 
     const rect = this.add.rectangle(x, y, w, h, display.fillColor);
     rect.setOrigin(display.originX, display.originY);
     rect.setFillStyle(display.fillColor, display.fillAlpha);
     rect.setStrokeStyle(display.strokeWidth, display.strokeColor, 1);
-    rect.setDepth(display.depth);
+    rect.setDepth(depth);
     return rect;
   }
 
@@ -420,5 +478,9 @@ export class SimulationScene extends Phaser.Scene {
       view.destroy();
     }
     this.entityViews.clear();
+    for (const overlay of this.entityOverlays.values()) {
+      overlay.destroy();
+    }
+    this.entityOverlays.clear();
   }
 }

@@ -146,6 +146,9 @@ const ENTITY_DISPLAY_BY_KIND: Record<EntityKind, EntityDisplayConfig> = {
 /** Depth for ship hold foreground mask when drawn as a sibling of the hull. */
 export const SHIP_HOLD_FOREGROUND_DEPTH = 16;
 
+/** Cradle seating frame in front of a seated cask (between cask and spreader). */
+export const CRADLE_SEATING_FRONT_DEPTH = 15;
+
 /** Depth for runtime cable lines (above spreader). */
 export const CABLE_DRAW_DEPTH = 20;
 
@@ -154,6 +157,20 @@ export const BERTH_BACKDROP_DEPTH = 0;
 
 export function resolveEntityDisplay(kind: EntityKind): EntityDisplayConfig {
   return ENTITY_DISPLAY_BY_KIND[kind] ?? ENTITY_DISPLAY_BY_KIND.unknown;
+}
+
+/**
+ * Depth for the optional overlay texture (ship hatch lip, cradle front posts).
+ * Must sit above the cask (14) so the load reads as inside the hold / frame.
+ */
+export function resolveOverlayDepth(kind: EntityKind): number {
+  if (kind === "ship") {
+    return SHIP_HOLD_FOREGROUND_DEPTH;
+  }
+  if (kind === "cradle") {
+    return CRADLE_SEATING_FRONT_DEPTH;
+  }
+  return resolveEntityDisplay(kind).depth + 1;
 }
 
 /** All kinds that prefer a primary texture when the loader succeeds. */

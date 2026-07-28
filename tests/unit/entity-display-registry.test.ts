@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   CABLE_DRAW_DEPTH,
+  CRADLE_SEATING_FRONT_DEPTH,
   SHIP_HOLD_FOREGROUND_DEPTH,
   entityKindsWithTextures,
   prefersTexturedDisplay,
   resolveEntityDisplay,
+  resolveOverlayDepth,
 } from "@/game/phaser/entityDisplayRegistry";
 import { UNLOADING_TEXTURE_KEYS } from "@/game/phaser/unloadingAssetPaths";
 
@@ -49,5 +51,13 @@ describe("entityDisplayRegistry", () => {
     const cfg = resolveEntityDisplay("unknown");
     expect(cfg.textureKey).toBeNull();
     expect(cfg.fillColor).toBeGreaterThan(0);
+  });
+
+  it("places ship/cradle overlays above the cask", () => {
+    const caskDepth = resolveEntityDisplay("cask").depth;
+    expect(resolveOverlayDepth("ship")).toBe(SHIP_HOLD_FOREGROUND_DEPTH);
+    expect(resolveOverlayDepth("ship")).toBeGreaterThan(caskDepth);
+    expect(resolveOverlayDepth("cradle")).toBe(CRADLE_SEATING_FRONT_DEPTH);
+    expect(resolveOverlayDepth("cradle")).toBeGreaterThan(caskDepth);
   });
 });
