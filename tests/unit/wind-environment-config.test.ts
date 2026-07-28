@@ -16,8 +16,8 @@ describe("windEnvironmentConfig", () => {
   });
 
   it("uses moderate force and zero default direction bias", () => {
-    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeGreaterThan(30);
-    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeLessThan(60);
+    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeGreaterThan(15);
+    expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.baseForce).toBeLessThan(40);
     expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.directionBias).toBe(0);
     expect(DEFAULT_WIND_ENVIRONMENT_CONFIG.oscWeight).toBeGreaterThan(0.4);
   });
