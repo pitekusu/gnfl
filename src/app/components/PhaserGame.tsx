@@ -111,7 +111,7 @@ export function PhaserGame() {
             data-testid="hud-lock-ready"
           >
             {locked || isLockEngagedStagePhase(stagePhase)
-              ? "中"
+              ? "ロック中"
               : lockReady
                 ? "可"
                 : "不可"}
