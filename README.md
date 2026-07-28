@@ -27,25 +27,40 @@ Simulation worker foundation:
 
 ### Phase 2 — done (greybox crane)
 
-Unloading berth greybox on branch `feat/phase-2-crane-greybox`:
+Unloading berth greybox:
 
 - Layout + crane physics config (Zod)
 - Fixed quay + cradle; kinematic ship with seeded heave/pitch
 - Rail trolley, dual spring-damper cables, dynamic spreader
 - Free (unlocked) cask in the hold
 - Keyboard: A/D trolley, W/S hoist, Shift 緩速, Esc pause
-- React HUD: 振れ / 張力 / 緩速状態
 - Mouse levers deferred
 
+### Phase 3 — done (unloading stage)
+
+Lock → lift → clear hold → traverse → seat → complete (or safe abort).
+See ADR `docs/decisions/0003-phase3-unloading-stage.md`.
+
+### Continuous sea & wind — done (replaces discrete Phase 4 weather)
+
+Always-on environment (no gust/high-wave events, no precursor UI). ADR:
+`docs/decisions/0004-continuous-sea-and-wind.md`.
+
+- Larger multi-harmonic ship heave/pitch with a slow seeded amplitude envelope
+- Continuous wind on the spreader (seeded sine + noise; left and right both appear)
+- Mild pre-lock wind for alignment; stronger wind after the cask is locked
+- Deterministic: same seed + time ⇒ same ship pose and wind (no `Math.random`)
+- React HUD: 工程 / ロック / 振れ / 張力 / **風** / **波**
+
 **Try the feel:** hard-stop after trolley move (swing), Shift for fine positioning,
-lock on the cask, lift clear of the hold, seat on the quay cradle.
+lock the cask (wind ramps up), lift clear of the hold, seat on the quay cradle.
 
 ### Not yet
 
-Larger continuous waves + always-on wind (next PR; no discrete weather events),
-scoring / results (5), ranking API / AWS deploy (6–7), final art (8).
+Scoring / results (Phase 5), ranking API / AWS deploy (6–7), final art (8).
+Water-surface VFX still greybox (static fill only).
 
-## Controls (Phase 3)
+## Controls
 
 | Key       | Action                                         |
 | --------- | ---------------------------------------------- |
