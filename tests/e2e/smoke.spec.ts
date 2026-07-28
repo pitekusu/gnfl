@@ -18,8 +18,11 @@ test("title screen opens and simulation worker becomes ready", async ({ page }) 
   );
   await expect(host.locator("canvas")).toBeVisible({ timeout: 15_000 });
 
-  // Phase 2 React HUD overlays (not Phaser camera text).
+  // React HUD overlays (not Phaser camera text).
   await expect(page.getByTestId("game-hud")).toBeVisible();
+  await expect(page.getByTestId("hud-stage-phase")).toContainText("READY", {
+    timeout: 15_000,
+  });
   await expect(page.getByTestId("hud-sway")).toBeVisible();
   await expect(page.getByTestId("hud-cable-load")).toBeVisible();
 });

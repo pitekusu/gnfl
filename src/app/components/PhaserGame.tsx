@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type Phaser from "phaser";
 import { createGame } from "@/game/phaser/createGame";
+import {
+  formatStagePhaseHud,
+  isLockEngagedStagePhase,
+} from "@/game/unloading/stagePhaseLabels";
 
 /**
  * Hosts Phaser. Only low-frequency simulation status crosses into React state.
@@ -14,6 +18,10 @@ export function PhaserGame() {
   const [fineMode, setFineMode] = useState(false);
   const [sway, setSway] = useState(0);
   const [cableLoad, setCableLoad] = useState(0);
+  const [stagePhase, setStagePhase] = useState("READY");
+  const [abortReason, setAbortReason] = useState<string | null>(null);
+  const [lockReady, setLockReady] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -42,6 +50,19 @@ export function PhaserGame() {
             if (payload.kind === "hud") {
               setSway(payload.sway);
               setCableLoad(payload.cableLoad);
+              setLockReady(Boolean(payload.lockReady));
+              setLocked(Boolean(payload.locked));
+              setAbortReason(
+                payload.abortReason != null && payload.abortReason !== ""
+                  ? payload.abortReason
+                  : null,
+              );
+              // Never allow undefined/empty to wipe the phase row.
+              setStagePhase(
+                payload.stagePhase != null && payload.stagePhase !== ""
+                  ? payload.stagePhase
+                  : "READY",
+              );
               return;
             }
             if (payload.status === "error") {
@@ -77,6 +98,32 @@ export function PhaserGame() {
   return (
     <div className="phaser-host" ref={hostRef} data-testid="phaser-host">
       <div className="game-hud" data-testid="game-hud">
+        <div className="game-hud-row">
+          <span className="game-hud-label">工程</span>
+          <span className="game-hud-value game-hud-phase" data-testid="hud-stage-phase">
+            {formatStagePhaseHud(stagePhase)}
+            {stagePhase === "SAFE_ABORTED" && abortReason ? ` · ${abortReason}` : ""}
+          </span>
+        </div>
+        <div className="game-hud-row">
+          <span className="game-hud-label">ロック</span>
+          <span
+            className={
+              locked || isLockEngagedStagePhase(stagePhase)
+                ? "game-hud-value game-hud-lock-active"
+                : lockReady
+                  ? "game-hud-value game-hud-lock-ready"
+                  : "game-hud-value game-hud-lock-wait"
+            }
+            data-testid="hud-lock-ready"
+          >
+            {locked || isLockEngagedStagePhase(stagePhase)
+              ? "ロック中"
+              : lockReady
+                ? "可"
+                : "不可"}
+          </span>
+        </div>
         <div className="game-hud-row">
           <span className="game-hud-label">振れ</span>
           <span className="game-hud-value" data-testid="hud-sway">

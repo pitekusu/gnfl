@@ -12,6 +12,7 @@ function makeSnapshot(
     tick,
     generatedAtMs,
     stagePhase: "READY",
+    abortReason: null,
     entities: [
       {
         id: "demo-box",
@@ -24,7 +25,7 @@ function makeSnapshot(
       },
     ],
     cables: [],
-    instruments: { cableLoad: 0, sway: 0 },
+    instruments: { cableLoad: 0, sway: 0, lockReady: false, locked: false },
     weather: { windHint: 0, waveHint: 0 },
   };
 }

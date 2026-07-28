@@ -23,7 +23,15 @@ export type SimulationStatusPayload =
   | { kind: "worker"; status: "connecting" | "ready" | "error"; detail?: string }
   | { kind: "phaser"; status: "ready" }
   | { kind: "control"; fineMode: boolean }
-  | { kind: "hud"; sway: number; cableLoad: number };
+  | {
+      kind: "hud";
+      sway: number;
+      cableLoad: number;
+      stagePhase: string;
+      abortReason: string | null;
+      lockReady: boolean;
+      locked: boolean;
+    };
 
 /**
  * Simulation scene: consumes worker snapshots and draws greybox entities.
@@ -131,6 +139,10 @@ export class SimulationScene extends Phaser.Scene {
                 kind: "hud",
                 sway: message.snapshot.instruments.sway,
                 cableLoad: message.snapshot.instruments.cableLoad,
+                stagePhase: message.snapshot.stagePhase ?? "READY",
+                abortReason: message.snapshot.abortReason ?? null,
+                lockReady: message.snapshot.instruments.lockReady ?? false,
+                locked: message.snapshot.instruments.locked ?? false,
               });
             }
             if (this.client?.isPausedByUser()) {
@@ -190,6 +202,10 @@ export class SimulationScene extends Phaser.Scene {
         kind: "hud",
         sway: sample.snapshot.instruments.sway,
         cableLoad: sample.snapshot.instruments.cableLoad,
+        stagePhase: sample.snapshot.stagePhase ?? "READY",
+        abortReason: sample.snapshot.abortReason ?? null,
+        lockReady: sample.snapshot.instruments.lockReady ?? false,
+        locked: sample.snapshot.instruments.locked ?? false,
       });
     }
   }

@@ -37,3 +37,20 @@ export function integrateCableTargetLength(params: HoistIntegrateParams): number
     params.maxCableLength,
   );
 }
+
+/**
+ * Optional unlocked hoist-up scale (hard mode can set scale to 0).
+ * Default config uses 1 so players can reel cable back after over-paying out.
+ * Lowering (negative axis) is always unscaled. Locked always uses full axis.
+ * Lifting the cask still requires the lock joint — this only affects cable command.
+ */
+export function applyUnlockedHoistUpInterlock(
+  axis: number,
+  locked: boolean,
+  unlockedHoistUpSpeedScale: number,
+): number {
+  if (locked || axis <= 0) {
+    return axis;
+  }
+  return axis * unlockedHoistUpSpeedScale;
+}

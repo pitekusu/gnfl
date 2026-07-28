@@ -1,4 +1,9 @@
-import type { CableRenderState, PlayerInput, RenderSnapshot } from "@/game/protocol";
+import type {
+  CableRenderState,
+  PlayerInput,
+  RenderSnapshot,
+  StagePhase,
+} from "@/game/protocol";
 import { createNeutralPlayerInput } from "@/game/protocol";
 import type { RapierModule } from "@/game/simulation/rapierInit";
 import type RAPIER from "@dimforge/rapier2d-compat";
@@ -15,13 +20,37 @@ import {
   DEFAULT_UNLOADING_LAYOUT,
   type UnloadingLayout,
 } from "@/game/unloading/layout";
-import { integrateCableTargetLength } from "@/game/unloading/hoistMotion";
+import {
+  applyUnlockedHoistUpInterlock,
+  integrateCableTargetLength,
+} from "@/game/unloading/hoistMotion";
+import {
+  DEFAULT_INTERLOCK_CONFIG,
+  type InterlockConfig,
+} from "@/game/unloading/interlockConfig";
+import { DEFAULT_LOCK_CONFIG, type LockConfig } from "@/game/unloading/lockConfig";
+import { evaluateLockAlignment } from "@/game/unloading/lockAlignment";
 import { sampleBaseShipMotion } from "@/game/unloading/shipMotion";
-import { integrateTrolleyOnRail } from "@/game/unloading/trolleyMotion";
+import {
+  createInitialStageMachineState,
+  reduceStage,
+  type StageMachineEvent,
+  type StageMachineState,
+} from "@/game/unloading/stageMachine";
+import { evaluateCradleSeating } from "@/game/unloading/cradleSeating";
+import {
+  cradleTopY,
+  isCaskClearOfHold,
+  isOverCradleZone,
+} from "@/game/unloading/stageThresholds";
+import {
+  applyAxisDeadzone,
+  integrateTrolleyOnRail,
+} from "@/game/unloading/trolleyMotion";
 
 /**
- * Phase 2 world: quay/cradle, ship, trolley, dual-cable spreader, free cask.
- * Hoist control and locking land in later commits.
+ * Unloading greybox world: quay/cradle, ship, trolley, cables, free cask.
+ * Stage machine is owned here; lock joint engages on Space when lockReady.
  */
 export class UnloadingScaffoldWorld {
   public static readonly QUAY_ID = "scaffold-quay";
@@ -31,6 +60,7 @@ export class UnloadingScaffoldWorld {
   public static readonly SPREADER_ID = "scaffold-spreader";
   public static readonly CASK_ID = "scaffold-cask";
 
+  private readonly rapier: RapierModule;
   private readonly world: RAPIER.World;
   private readonly quayBody: RAPIER.RigidBody;
   private readonly cradleBody: RAPIER.RigidBody;
@@ -40,6 +70,8 @@ export class UnloadingScaffoldWorld {
   private readonly caskBody: RAPIER.RigidBody;
   private readonly layout: UnloadingLayout;
   private readonly physics: CranePhysicsConfig;
+  private readonly lockConfig: LockConfig;
+  private readonly interlock: InterlockConfig;
   private readonly physicsDtSeconds: number;
   private readonly physicsHz: number;
   private readonly seed: string;
@@ -52,8 +84,18 @@ export class UnloadingScaffoldWorld {
   private lastCableLength = 0;
   private lastCables: CableRenderState[] = [];
   private control: PlayerInput = createNeutralPlayerInput();
+  private stage: StageMachineState = createInitialStageMachineState();
+  private alignStableTicks = 0;
+  private lockReady = false;
+  /** Explicit lock flag for HUD/snapshots (do not rely only on joint.isValid()). */
+  private caskLocked = false;
+  private lockJoint: RAPIER.ImpulseJoint | null = null;
+  /** Cask world Y captured when the lock joint engaged (for breakout lift). */
+  private lockEngageCaskY: number | null = null;
+  private seatStableTicks = 0;
 
   private constructor(
+    rapier: RapierModule,
     world: RAPIER.World,
     quayBody: RAPIER.RigidBody,
     cradleBody: RAPIER.RigidBody,
@@ -63,12 +105,15 @@ export class UnloadingScaffoldWorld {
     caskBody: RAPIER.RigidBody,
     layout: UnloadingLayout,
     physics: CranePhysicsConfig,
+    lockConfig: LockConfig,
+    interlock: InterlockConfig,
     physicsDtSeconds: number,
     physicsHz: number,
     seed: string,
     trolleyX: number,
     cableTargetLength: number,
   ) {
+    this.rapier = rapier;
     this.world = world;
     this.quayBody = quayBody;
     this.cradleBody = cradleBody;
@@ -78,6 +123,8 @@ export class UnloadingScaffoldWorld {
     this.caskBody = caskBody;
     this.layout = layout;
     this.physics = physics;
+    this.lockConfig = lockConfig;
+    this.interlock = interlock;
     this.physicsDtSeconds = physicsDtSeconds;
     this.physicsHz = physicsHz;
     this.seed = seed;
@@ -92,6 +139,8 @@ export class UnloadingScaffoldWorld {
     seed: string,
     layout: UnloadingLayout = DEFAULT_UNLOADING_LAYOUT,
     physics: CranePhysicsConfig = DEFAULT_CRANE_PHYSICS_CONFIG,
+    lockConfig: LockConfig = DEFAULT_LOCK_CONFIG,
+    interlock: InterlockConfig = DEFAULT_INTERLOCK_CONFIG,
   ): UnloadingScaffoldWorld {
     const physicsDtSeconds = 1 / physicsHz;
     const world = new rapier.World({ x: 0, y: gravityY });
@@ -111,12 +160,15 @@ export class UnloadingScaffoldWorld {
       quayBody,
     );
 
-    const bumperHalfHeight = 0.9;
+    // Water-side bumper (drawn in scenery — must match these local offsets).
     world.createCollider(
-      rapier.ColliderDesc.cuboid(0.25, bumperHalfHeight)
+      rapier.ColliderDesc.cuboid(
+        layout.quay.bumperHalfWidth,
+        layout.quay.bumperHalfHeight,
+      )
         .setTranslation(
-          -layout.quay.halfWidth + 0.25,
-          -layout.quay.halfHeight - bumperHalfHeight,
+          -layout.quay.halfWidth + layout.quay.bumperHalfWidth,
+          -layout.quay.halfHeight - layout.quay.bumperHalfHeight,
         )
         .setFriction(0.6),
       quayBody,
@@ -128,11 +180,32 @@ export class UnloadingScaffoldWorld {
         layout.cradle.centerY,
       ),
     );
+    // U-cradle: pad + left/right posts (all must be drawn to match).
     world.createCollider(
       rapier.ColliderDesc.cuboid(
         layout.cradle.halfWidth,
         layout.cradle.halfHeight,
       ).setFriction(0.95),
+      cradleBody,
+    );
+    const postLocalY = -layout.cradle.halfHeight - layout.cradle.postHalfHeight;
+    const postInsetX = layout.cradle.halfWidth - layout.cradle.postHalfWidth;
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(
+        layout.cradle.postHalfWidth,
+        layout.cradle.postHalfHeight,
+      )
+        .setTranslation(-postInsetX, postLocalY)
+        .setFriction(0.95),
+      cradleBody,
+    );
+    world.createCollider(
+      rapier.ColliderDesc.cuboid(
+        layout.cradle.postHalfWidth,
+        layout.cradle.postHalfHeight,
+      )
+        .setTranslation(postInsetX, postLocalY)
+        .setFriction(0.95),
       cradleBody,
     );
 
@@ -152,7 +225,10 @@ export class UnloadingScaffoldWorld {
 
     const holdFloorY = layout.ship.holdFloorOffsetY;
     world.createCollider(
-      rapier.ColliderDesc.cuboid(layout.ship.holdHalfWidth, 0.15)
+      rapier.ColliderDesc.cuboid(
+        layout.ship.holdHalfWidth,
+        layout.ship.holdFloorHalfHeight,
+      )
         .setTranslation(0, holdFloorY)
         .setFriction(0.9),
       shipBody,
@@ -233,6 +309,7 @@ export class UnloadingScaffoldWorld {
     );
 
     const stage = new UnloadingScaffoldWorld(
+      rapier,
       world,
       quayBody,
       cradleBody,
@@ -242,6 +319,8 @@ export class UnloadingScaffoldWorld {
       caskBody,
       layout,
       physics,
+      lockConfig,
+      interlock,
       physicsDtSeconds,
       physicsHz,
       seed,
@@ -274,16 +353,128 @@ export class UnloadingScaffoldWorld {
     return { x: t.x, y: t.y };
   }
 
+  public getStagePhase(): StagePhase {
+    return this.stage.phase;
+  }
+
+  public getAbortReason(): string | null {
+    return this.stage.abortReason;
+  }
+
+  public isLockReady(): boolean {
+    return this.lockReady;
+  }
+
+  /** True after Space engaged the spreader–cask fixed joint. */
+  public isLockJointActive(): boolean {
+    return this.caskLocked;
+  }
+
+  /**
+   * Place locked load onto the cradle pad with zero velocity (tests / debug).
+   * Keeps trolley above the cradle so seating checks can pass without long settle.
+   */
+  public snapLoadOntoCradlePad(): void {
+    const top = cradleTopY(this.layout);
+    // Cask bottom on cradle top: bottom = y + halfH = top ⇒ y = top - halfH.
+    const caskY = top - this.layout.cask.halfHeight;
+    const caskX = this.layout.cradle.centerX;
+    this.trolleyX = caskX;
+    this.trolleyVelocity = 0;
+    this.trolleyBody.setNextKinematicTranslation({
+      x: this.trolleyX,
+      y: this.layout.crane.railY,
+    });
+    this.trolleyBody.setNextKinematicRotation(0);
+
+    this.caskBody.setTranslation({ x: caskX, y: caskY }, true);
+    this.caskBody.setRotation(0, true);
+    this.caskBody.setLinvel({ x: 0, y: 0 }, true);
+    this.caskBody.setAngvel(0, true);
+
+    const spreaderY =
+      caskY - this.layout.cask.halfHeight - this.layout.crane.spreaderHalfHeight;
+    this.spreaderBody.setTranslation({ x: caskX, y: spreaderY }, true);
+    this.spreaderBody.setRotation(0, true);
+    this.spreaderBody.setLinvel({ x: 0, y: 0 }, true);
+    this.spreaderBody.setAngvel(0, true);
+
+    const hang = spreaderY - this.layout.crane.railY;
+    this.cableTargetLength = clampCableTargetLength(
+      hang,
+      this.physics.hoist.minCableLength,
+      this.physics.hoist.maxCableLength,
+    );
+  }
+
+  /**
+   * Place spreader on the cask top face with zero relative velocity.
+   * Intended for tests (and debug) so lockReady can be reached without piloting.
+   */
+  public snapSpreaderToCaskLockPose(): void {
+    const cask = this.caskBody.translation();
+    const idealY =
+      cask.y - this.layout.cask.halfHeight - this.layout.crane.spreaderHalfHeight;
+    this.spreaderBody.setTranslation({ x: cask.x, y: idealY }, true);
+    this.spreaderBody.setRotation(this.caskBody.rotation(), true);
+    this.spreaderBody.setLinvel({ x: 0, y: 0 }, true);
+    this.spreaderBody.setAngvel(0, true);
+    this.caskBody.setLinvel({ x: 0, y: 0 }, true);
+    this.caskBody.setAngvel(0, true);
+    // Keep trolley above the cask so cables do not yank the pair sideways.
+    this.trolleyX = cask.x;
+    this.trolleyVelocity = 0;
+    this.trolleyBody.setNextKinematicTranslation({
+      x: this.trolleyX,
+      y: this.layout.crane.railY,
+    });
+    this.trolleyBody.setNextKinematicRotation(0);
+    const hang = idealY - this.layout.crane.railY;
+    this.cableTargetLength = clampCableTargetLength(
+      hang,
+      this.physics.hoist.minCableLength,
+      this.physics.hoist.maxCableLength,
+    );
+  }
+
+  /**
+   * Apply a stage event from physics/input (later commits).
+   * Returns whether the transition was accepted.
+   */
+  public dispatchStageEvent(event: StageMachineEvent): boolean {
+    const result = reduceStage(this.stage, event);
+    if (result.accepted) {
+      this.stage = result.state;
+    }
+    return result.accepted;
+  }
+
   public step(): void {
     this.tick += 1;
     const elapsedSeconds = this.tick / this.physicsHz;
+    const terminal =
+      this.stage.phase === "COMPLETED" || this.stage.phase === "SAFE_ABORTED";
+
+    // Freeze player control after complete / safe abort.
+    const trolleyAxis = terminal ? 0 : this.control.trolleyAxis;
+    const hoistInput = terminal ? 0 : this.control.hoistAxis;
+
+    // Low-clearance trolley limit while a locked load is still inside the hold.
+    const shipY = this.shipBody.translation().y;
+    const caskY = this.caskBody.translation().y;
+    const carryingLowInHold =
+      this.isLockJointActive() &&
+      !isCaskClearOfHold(caskY, shipY, this.layout, this.interlock);
+    const trolleyMaxSpeed =
+      this.physics.trolley.maxSpeed *
+      (carryingLowInHold ? this.interlock.lowClearanceTrolleySpeedScale : 1);
 
     const trolley = integrateTrolleyOnRail({
       x: this.trolleyX,
       velocity: this.trolleyVelocity,
-      axis: this.control.trolleyAxis,
+      axis: trolleyAxis,
       dtSeconds: this.physicsDtSeconds,
-      maxSpeed: this.physics.trolley.maxSpeed,
+      maxSpeed: trolleyMaxSpeed,
       acceleration: this.physics.trolley.acceleration,
       axisDeadzone: this.physics.trolley.axisDeadzone,
       fineMode: this.control.fineMode,
@@ -301,9 +492,19 @@ export class UnloadingScaffoldWorld {
     this.trolleyBody.setNextKinematicRotation(0);
 
     // Hoist: change spring rest length (positive axis shortens = lift).
+    // Unlocked hoist-up uses interlock scale (default 1 = can reel cable back).
+    let hoistAxis = applyUnlockedHoistUpInterlock(
+      hoistInput,
+      this.isLockJointActive(),
+      this.interlock.unlockedHoistUpSpeedScale,
+    );
+    // Extreme tension: cut hoist-up (interlock, not score yet).
+    if (hoistAxis > 0 && this.lastCableTension > this.interlock.maxHoistTension) {
+      hoistAxis = 0;
+    }
     this.cableTargetLength = integrateCableTargetLength({
       targetLength: this.cableTargetLength,
-      axis: this.control.hoistAxis,
+      axis: hoistAxis,
       dtSeconds: this.physicsDtSeconds,
       maxSpeed: this.physics.hoist.maxSpeed,
       axisDeadzone: this.physics.trolley.axisDeadzone,
@@ -330,6 +531,335 @@ export class UnloadingScaffoldWorld {
 
     this.world.timestep = this.physicsDtSeconds;
     this.world.step();
+
+    if (!terminal) {
+      this.updateLockAlignmentAndPhase();
+      this.tryLockOrUnlockFromInput();
+      this.updateBreakoutLiftPhase();
+      this.updateClearOfHoldPhase();
+      this.updateTraverseAndCradlePhase();
+      this.updateSeatingPhase();
+      this.updateSafetyAbort();
+    }
+  }
+
+  private updateLockAlignmentAndPhase(): void {
+    // Only evaluate free-cask lock before LOCKED.
+    if (this.stage.phase !== "READY" && this.stage.phase !== "ALIGNING") {
+      this.lockReady = false;
+      this.alignStableTicks = 0;
+      return;
+    }
+
+    const spreaderT = this.spreaderBody.translation();
+    const spreaderV = this.spreaderBody.linvel();
+    const caskT = this.caskBody.translation();
+    const caskV = this.caskBody.linvel();
+
+    const alignment = evaluateLockAlignment({
+      spreader: {
+        x: spreaderT.x,
+        y: spreaderT.y,
+        angleRad: this.spreaderBody.rotation(),
+        vx: spreaderV.x,
+        vy: spreaderV.y,
+      },
+      cask: {
+        x: caskT.x,
+        y: caskT.y,
+        angleRad: this.caskBody.rotation(),
+        vx: caskV.x,
+        vy: caskV.y,
+      },
+      spreaderHalfHeight: this.layout.crane.spreaderHalfHeight,
+      caskHalfHeight: this.layout.cask.halfHeight,
+      config: this.lockConfig,
+    });
+
+    if (alignment.ok) {
+      this.alignStableTicks += 1;
+    } else {
+      this.alignStableTicks = 0;
+    }
+
+    this.lockReady =
+      alignment.ok && this.alignStableTicks >= this.lockConfig.stableAlignTicks;
+
+    if (this.lockReady) {
+      this.dispatchStageEvent({ type: "ALIGNMENT_OK" });
+    } else if (this.stage.phase === "ALIGNING") {
+      this.dispatchStageEvent({ type: "ALIGNMENT_LOST" });
+    }
+  }
+
+  /**
+   * Space edge:
+   * - While locked (any phase): release joint → READY (re-lock allowed later)
+   * - READY/ALIGNING + lockReady: engage joint → LOCKED
+   */
+  private tryLockOrUnlockFromInput(): void {
+    if (!this.control.lockPressed) {
+      return;
+    }
+    // One-shot: clear so held/repeated samples in the same input packet do not re-fire.
+    this.control = { ...this.control, lockPressed: false };
+
+    if (this.caskLocked) {
+      // On SEATED, unlock completes the careful-placement path.
+      // Otherwise unlock returns to READY for re-lock.
+      this.releaseLockJoint();
+      this.dispatchStageEvent({ type: "UNLOCK_CONFIRMED" });
+      return;
+    }
+
+    if (!this.lockReady) {
+      return;
+    }
+    if (this.stage.phase !== "READY" && this.stage.phase !== "ALIGNING") {
+      return;
+    }
+
+    // Ensure machine is on ALIGNING before LOCK_SUCCESS.
+    if (this.stage.phase === "READY") {
+      this.dispatchStageEvent({ type: "ALIGNMENT_OK" });
+    }
+
+    this.createLockJoint();
+    this.caskLocked = true;
+    this.lockEngageCaskY = this.caskBody.translation().y;
+    this.dispatchStageEvent({ type: "LOCK_SUCCESS" });
+    this.lockReady = false;
+    this.alignStableTicks = 0;
+  }
+
+  private releaseLockJoint(): void {
+    if (this.lockJoint !== null && this.lockJoint.isValid()) {
+      this.world.removeImpulseJoint(this.lockJoint, true);
+    }
+    this.lockJoint = null;
+    this.caskLocked = false;
+    this.lockEngageCaskY = null;
+    this.seatStableTicks = 0;
+  }
+
+  /**
+   * After lock, hoist-up that lifts the cask off its engage height → LIFTING.
+   */
+  private updateBreakoutLiftPhase(): void {
+    if (this.stage.phase !== "LOCKED") {
+      return;
+    }
+    if (this.lockEngageCaskY === null) {
+      return;
+    }
+    const caskY = this.caskBody.translation().y;
+    // Y-down: lift decreases world Y.
+    const lifted = this.lockEngageCaskY - caskY;
+    if (lifted >= this.interlock.breakoutLiftDistance) {
+      this.dispatchStageEvent({ type: "BREAKOUT_LIFT" });
+    }
+  }
+
+  /**
+   * While LIFTING, clear the hold mouth height → CLEAR_OF_HOLD.
+   */
+  private updateClearOfHoldPhase(): void {
+    if (this.stage.phase !== "LIFTING") {
+      return;
+    }
+    const shipY = this.shipBody.translation().y;
+    const caskY = this.caskBody.translation().y;
+    if (isCaskClearOfHold(caskY, shipY, this.layout, this.interlock)) {
+      this.dispatchStageEvent({ type: "CLEARED_HOLD" });
+    }
+  }
+
+  /**
+   * CLEAR_OF_HOLD → TRAVERSING on trolley command;
+   * TRAVERSING / CLEAR_OF_HOLD → LANDING when over cradle;
+   * LANDING → TRAVERSING if the load leaves the cradle band.
+   *
+   * "Over cradle" uses trolley X (crane position) so swinging load lag
+   * does not miss the landing band during traverse.
+   */
+  private updateTraverseAndCradlePhase(): void {
+    const overCradle = isOverCradleZone(this.trolleyX, this.layout);
+    const trolleyDrive = applyAxisDeadzone(
+      this.control.trolleyAxis,
+      this.physics.trolley.axisDeadzone,
+    );
+
+    if (this.stage.phase === "CLEAR_OF_HOLD") {
+      if (overCradle) {
+        this.dispatchStageEvent({ type: "OVER_CRADLE" });
+        return;
+      }
+      if (Math.abs(trolleyDrive) > 0) {
+        this.dispatchStageEvent({ type: "BEGIN_TRAVERSE" });
+      }
+      return;
+    }
+
+    if (this.stage.phase === "TRAVERSING") {
+      if (overCradle) {
+        this.dispatchStageEvent({ type: "OVER_CRADLE" });
+      }
+      return;
+    }
+
+    if (this.stage.phase === "LANDING") {
+      if (!overCradle) {
+        this.seatStableTicks = 0;
+        this.dispatchStageEvent({ type: "BEGIN_TRAVERSE" });
+      }
+    }
+  }
+
+  /**
+   * Stable cradle seating:
+   * - Free / dropped load (unlocked): SEATED → COMPLETED automatically.
+   * - Locked careful placement: SEATED only; COMPLETED on Space unlock.
+   */
+  private updateSeatingPhase(): void {
+    if (this.stage.phase === "COMPLETED" || this.stage.phase === "SAFE_ABORTED") {
+      this.seatStableTicks = 0;
+      return;
+    }
+
+    // Locked placement waiting for unlock — allow leave-seat if re-hoisted.
+    if (this.stage.phase === "SEATED") {
+      if (this.caskLocked) {
+        this.updateSeatedLeaveChecks();
+      }
+      // Unlocked SEATED should not linger (free-drop path completes same frame).
+      return;
+    }
+
+    const caskX = this.caskBody.translation().x;
+    // Use cask position so a free drop into the pad counts (not only trolley X).
+    if (!isOverCradleZone(caskX, this.layout)) {
+      this.seatStableTicks = 0;
+      return;
+    }
+
+    const seating = this.evaluateCurrentCradleSeating();
+    if (seating.ok) {
+      this.seatStableTicks += 1;
+    } else {
+      this.seatStableTicks = 0;
+      return;
+    }
+
+    if (this.seatStableTicks >= this.interlock.seatStableTicks) {
+      this.seatStableTicks = 0;
+      this.dispatchStageEvent({ type: "SEAT_STABLE" });
+      // Drop / free seating completes immediately; locked seating waits for unlock.
+      if (!this.caskLocked) {
+        this.dispatchStageEvent({ type: "COMPLETE_CONFIRMED" });
+      }
+    }
+  }
+
+  private updateSeatedLeaveChecks(): void {
+    const overCradle = isOverCradleZone(this.trolleyX, this.layout);
+    if (!overCradle) {
+      this.dispatchStageEvent({ type: "BEGIN_TRAVERSE" });
+      return;
+    }
+    const seating = this.evaluateCurrentCradleSeating();
+    if (seating.gapAboveCradle > this.interlock.seatMaxVerticalError) {
+      this.dispatchStageEvent({ type: "SEAT_LOST" });
+    }
+  }
+
+  private evaluateCurrentCradleSeating() {
+    const caskT = this.caskBody.translation();
+    const caskV = this.caskBody.linvel();
+    return evaluateCradleSeating({
+      cask: {
+        x: caskT.x,
+        y: caskT.y,
+        angleRad: this.caskBody.rotation(),
+        vx: caskV.x,
+        vy: caskV.y,
+      },
+      caskHalfHeight: this.layout.cask.halfHeight,
+      cradleCenterX: this.layout.cradle.centerX,
+      cradleTopY: cradleTopY(this.layout),
+      interlock: this.interlock,
+    });
+  }
+
+  /**
+   * E-stop, world-bounds escape, and physics runaway → SAFE_ABORTED.
+   */
+  private updateSafetyAbort(): void {
+    if (this.stage.phase === "COMPLETED" || this.stage.phase === "SAFE_ABORTED") {
+      return;
+    }
+
+    if (this.control.emergencyStopPressed) {
+      this.control = { ...this.control, emergencyStopPressed: false };
+      this.dispatchStageEvent({ type: "SAFE_ABORT", reason: "E_STOP" });
+      this.trolleyVelocity = 0;
+      return;
+    }
+
+    const bounds = this.interlock.worldBounds;
+    const bodies = [
+      { name: "spreader", body: this.spreaderBody },
+      { name: "cask", body: this.caskBody },
+    ] as const;
+    for (const { name, body } of bodies) {
+      const t = body.translation();
+      const v = body.linvel();
+      const speed = Math.hypot(v.x, v.y);
+      if (speed > this.interlock.maxBodySpeed) {
+        this.dispatchStageEvent({
+          type: "SAFE_ABORT",
+          reason: `RUNAWAY_${name.toUpperCase()}`,
+        });
+        this.trolleyVelocity = 0;
+        return;
+      }
+      if (
+        t.x < bounds.minX ||
+        t.x > bounds.maxX ||
+        t.y < bounds.minY ||
+        t.y > bounds.maxY
+      ) {
+        this.dispatchStageEvent({
+          type: "SAFE_ABORT",
+          reason: `OUT_OF_BOUNDS_${name.toUpperCase()}`,
+        });
+        this.trolleyVelocity = 0;
+        return;
+      }
+    }
+  }
+
+  private createLockJoint(): void {
+    // Close residual face gap so the joint does not freeze an air pocket.
+    this.snapSpreaderToCaskLockPose();
+
+    // Face anchors: spreader bottom center ↔ cask top center (body-local).
+    const anchor1: Vec2 = { x: 0, y: this.layout.crane.spreaderHalfHeight };
+    const anchor2: Vec2 = { x: 0, y: -this.layout.cask.halfHeight };
+    const rot1 = this.spreaderBody.rotation();
+    const rot2 = this.caskBody.rotation();
+    // Freeze current relative orientation: world frames coincide at creation.
+    const frame1 = 0;
+    const frame2 = rot1 - rot2;
+
+    const params = this.rapier.JointData.fixed(anchor1, frame1, anchor2, frame2);
+    const joint = this.world.createImpulseJoint(
+      params,
+      this.spreaderBody,
+      this.caskBody,
+      true,
+    );
+    joint.setContactsEnabled(false);
+    this.lockJoint = joint;
   }
 
   private applyCableForces(): void {
@@ -412,7 +942,8 @@ export class UnloadingScaffoldWorld {
     return {
       tick,
       generatedAtMs,
-      stagePhase: "READY",
+      stagePhase: this.stage.phase,
+      abortReason: this.stage.abortReason,
       entities: [
         {
           id: UnloadingScaffoldWorld.SHIP_ID,
@@ -474,6 +1005,8 @@ export class UnloadingScaffoldWorld {
         cableLoad,
         // Displacement-dominant so the HUD moves when the load swings.
         sway: lateralSway + speedSway * 0.25,
+        lockReady: this.lockReady,
+        locked: this.caskLocked,
       },
       weather: {
         windHint: 0,
@@ -483,6 +1016,7 @@ export class UnloadingScaffoldWorld {
   }
 
   public free(): void {
+    this.releaseLockJoint();
     this.world.free();
   }
 }

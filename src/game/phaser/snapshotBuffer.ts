@@ -109,11 +109,14 @@ export function interpolateSnapshots(
     tick: current.tick,
     generatedAtMs: lerp(previous.generatedAtMs, current.generatedAtMs, t),
     stagePhase: current.stagePhase,
+    abortReason: current.abortReason,
     entities,
     cables,
     instruments: {
       cableLoad: lerp(previous.instruments.cableLoad, current.instruments.cableLoad, t),
       sway: lerp(previous.instruments.sway, current.instruments.sway, t),
+      lockReady: current.instruments.lockReady,
+      locked: current.instruments.locked,
     },
     weather: {
       windHint: lerp(previous.weather.windHint, current.weather.windHint, t),

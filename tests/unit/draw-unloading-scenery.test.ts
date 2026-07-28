@@ -11,10 +11,13 @@ function mockGraphics() {
     clear: vi.fn(),
     fillStyle: vi.fn(),
     fillRect: vi.fn(),
+    strokeRect: vi.fn(),
     lineStyle: vi.fn(),
     beginPath: vi.fn(),
     moveTo: vi.fn(),
     lineTo: vi.fn(),
+    closePath: vi.fn(),
+    fillPath: vi.fn(),
     strokePath: vi.fn(),
   };
 }
@@ -34,6 +37,7 @@ describe("drawUnloadingScenery", () => {
       tick: 1,
       generatedAtMs: 0,
       stagePhase: "READY",
+      abortReason: null,
       entities: [
         {
           id: "ship",
@@ -46,7 +50,7 @@ describe("drawUnloadingScenery", () => {
         },
       ],
       cables: [],
-      instruments: { cableLoad: 0, sway: 0 },
+      instruments: { cableLoad: 0, sway: 0, lockReady: false, locked: false },
       weather: { windHint: 0, waveHint: 0 },
     };
     drawDynamicUnloadingOverlays(g as never, snapshot);

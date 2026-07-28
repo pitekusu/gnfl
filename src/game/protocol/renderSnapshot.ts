@@ -36,10 +36,14 @@ export interface WeatherVisualState {
   waveHint: number;
 }
 
-/** Phase 1 placeholder instruments. */
+/** Instruments for HUD / later scoring. */
 export interface InstrumentState {
   cableLoad: number;
   sway: number;
+  /** True when spreader–cask alignment is stable enough to lock (Space). */
+  lockReady: boolean;
+  /** True while the spreader–cask fixed joint is engaged. */
+  locked: boolean;
 }
 
 /**
@@ -50,6 +54,8 @@ export interface RenderSnapshot {
   tick: number;
   generatedAtMs: number;
   stagePhase: StagePhase;
+  /** Set when stagePhase is SAFE_ABORTED. */
+  abortReason: string | null;
   entities: ReadonlyArray<RenderEntityState>;
   cables: ReadonlyArray<CableRenderState>;
   instruments: InstrumentState;
@@ -64,9 +70,10 @@ export function createEmptyRenderSnapshot(
     tick,
     generatedAtMs,
     stagePhase: "READY",
+    abortReason: null,
     entities: [],
     cables: [],
-    instruments: { cableLoad: 0, sway: 0 },
+    instruments: { cableLoad: 0, sway: 0, lockReady: false, locked: false },
     weather: { windHint: 0, waveHint: 0 },
   };
 }

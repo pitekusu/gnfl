@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { integrateCableTargetLength } from "@/game/unloading/hoistMotion";
+import {
+  applyUnlockedHoistUpInterlock,
+  integrateCableTargetLength,
+} from "@/game/unloading/hoistMotion";
 
 describe("integrateCableTargetLength", () => {
   const base = {
@@ -61,5 +64,23 @@ describe("integrateCableTargetLength", () => {
     }
     // Both shortened; fine shortened less.
     expect(fine).toBeGreaterThan(normal);
+  });
+});
+
+describe("applyUnlockedHoistUpInterlock", () => {
+  it("blocks hoist-up when unlocked and scale is 0", () => {
+    expect(applyUnlockedHoistUpInterlock(1, false, 0)).toBe(0);
+  });
+
+  it("allows lowering when unlocked", () => {
+    expect(applyUnlockedHoistUpInterlock(-1, false, 0)).toBe(-1);
+  });
+
+  it("allows full hoist-up when locked", () => {
+    expect(applyUnlockedHoistUpInterlock(1, true, 0)).toBe(1);
+  });
+
+  it("scales hoist-up when unlocked with partial scale", () => {
+    expect(applyUnlockedHoistUpInterlock(1, false, 0.25)).toBeCloseTo(0.25);
   });
 });

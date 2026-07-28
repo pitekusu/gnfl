@@ -37,24 +37,29 @@ Unloading berth greybox on branch `feat/phase-2-crane-greybox`:
 - React HUD: 振れ / 張力 / 緩速状態
 - Mouse levers deferred
 
-**Try the feel:** hard-stop after trolley move (swing), Shift for fine positioning.
+**Try the feel:** hard-stop after trolley move (swing), Shift for fine positioning,
+lock on the cask, lift clear of the hold, seat on the quay cradle.
 
 ### Not yet
 
-Lock/seat state machine (Phase 3), weather events (4), scoring (5), ranking API /
-AWS deploy (6–7), final art (8).
+Weather events (Phase 4), scoring / results (5), ranking API / AWS deploy (6–7),
+final art (8).
 
-## Controls (Phase 2)
+## Controls (Phase 3)
 
-| Key           | Action                             |
-| ------------- | ---------------------------------- |
-| `A` / `←`     | Trolley left                       |
-| `D` / `→`     | Trolley right                      |
-| `W` / `↑`     | Hoist up (shorten cable)           |
-| `S` / `↓`     | Hoist down (lengthen cable)        |
-| `Shift`       | Fine mode（緩速状態）              |
-| `Esc`         | Pause toggle                       |
-| `Space` / `E` | Reserved (lock / e-stop — Phase 3) |
+| Key       | Action                                         |
+| --------- | ---------------------------------------------- |
+| `A` / `←` | Trolley left                                   |
+| `D` / `→` | Trolley right                                  |
+| `W` / `↑` | Hoist up (shorten cable)                       |
+| `S` / `↓` | Hoist down (lengthen cable)                    |
+| `Shift`   | Fine mode（緩速状態）                          |
+| `Space`   | Lock when ready; unlock anywhere (re-lockable) |
+| `E`       | Emergency stop → safe abort                    |
+| `Esc`     | Pause toggle                                   |
+
+**Complete:** free/drop seating on the cradle finishes immediately; locked seating
+finishes when you unlock on the pad (`Space`).
 
 ## Development
 

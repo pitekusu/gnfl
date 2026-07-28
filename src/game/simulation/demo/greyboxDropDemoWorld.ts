@@ -84,6 +84,7 @@ export class GreyboxDemoWorld {
       tick,
       generatedAtMs,
       stagePhase: "READY",
+      abortReason: null,
       entities: [
         {
           id: GreyboxDemoWorld.FLOOR_ID,
@@ -105,7 +106,7 @@ export class GreyboxDemoWorld {
         },
       ],
       cables: [],
-      instruments: { cableLoad: 0, sway: 0 },
+      instruments: { cableLoad: 0, sway: 0, lockReady: false, locked: false },
       weather: { windHint: 0, waveHint: 0 },
     };
   }
