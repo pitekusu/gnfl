@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { CraneKeyboardBinder } from "@/game/input/CraneKeyboardBinder";
-import type { RenderEntityState, RenderSnapshot } from "@/game/protocol";
+import type { RenderEntityState, RenderSnapshot, StageResult } from "@/game/protocol";
 import {
   drawDynamicUnloadingOverlays,
   drawStaticUnloadingScenery,
@@ -35,6 +35,11 @@ export type SimulationStatusPayload =
       windHint: number;
       /** Signed ship heave (game units). */
       waveHint: number;
+    }
+  | {
+      /** Terminal COMPLETED or SAFE_ABORT from the worker (once per run). */
+      kind: "stageEnd";
+      result: StageResult;
     };
 
 /**
@@ -157,6 +162,16 @@ export class SimulationScene extends Phaser.Scene {
               this.hintText?.setText("操作中 — 振れ/風/波は左上 HUD");
             }
           }
+          break;
+        case "COMPLETED":
+          this.hintText?.setText("工程完了 — 結果は画面オーバーレイ");
+          this.emitStatus({ kind: "stageEnd", result: message.result });
+          break;
+        case "SAFE_ABORT":
+          this.hintText?.setText(
+            `安全中止${message.result.abortReason ? ` (${message.result.abortReason})` : ""} — スコア登録不可`,
+          );
+          this.emitStatus({ kind: "stageEnd", result: message.result });
           break;
         case "ERROR":
           this.statusText?.setText(`worker error: ${message.code}`);

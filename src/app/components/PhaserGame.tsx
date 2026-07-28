@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type Phaser from "phaser";
+import type { StageResult } from "@/game/protocol";
 import { createGame } from "@/game/phaser/createGame";
 import {
   formatStagePhaseHud,
   isLockEngagedStagePhase,
 } from "@/game/unloading/stagePhaseLabels";
+import { formatStageEndBanner } from "@/game/unloading/stageEndBanner";
 import { formatWaveHud, formatWindHud } from "@/game/unloading/weatherHud";
 
 /**
@@ -25,6 +27,8 @@ export function PhaserGame() {
   const [locked, setLocked] = useState(false);
   const [windHint, setWindHint] = useState(0);
   const [waveHint, setWaveHint] = useState(0);
+  /** Terminal result from worker COMPLETED / SAFE_ABORT (C8 bridge). */
+  const [stageResult, setStageResult] = useState<StageResult | null>(null);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -68,6 +72,20 @@ export function PhaserGame() {
                   ? payload.stagePhase
                   : "READY",
               );
+              return;
+            }
+            if (payload.kind === "stageEnd") {
+              setStageResult(payload.result);
+              setStagePhase(
+                payload.result.completed
+                  ? "COMPLETED"
+                  : payload.result.aborted
+                    ? "SAFE_ABORTED"
+                    : "READY",
+              );
+              if (payload.result.abortReason) {
+                setAbortReason(payload.result.abortReason);
+              }
               return;
             }
             if (payload.status === "error") {
@@ -157,6 +175,19 @@ export function PhaserGame() {
       {fineMode ? (
         <div className="fine-mode-badge" data-testid="fine-mode-badge" role="status">
           緩速状態
+        </div>
+      ) : null}
+      {stageResult ? (
+        <div
+          className={
+            stageResult.aborted
+              ? "stage-end-banner stage-end-banner-abort"
+              : "stage-end-banner stage-end-banner-complete"
+          }
+          data-testid="stage-end-banner"
+          role="status"
+        >
+          {formatStageEndBanner(stageResult)}
         </div>
       ) : null}
       <div className="phaser-status" data-testid="phaser-status">

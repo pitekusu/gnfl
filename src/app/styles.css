@@ -304,3 +304,32 @@ button {
   pointer-events: none;
   box-shadow: 0 0 0 1px color-mix(in srgb, #000 40%, transparent);
 }
+
+/* Terminal stage result bridge (full result screen is Phase 5 C9). */
+.stage-end-banner {
+  position: absolute;
+  left: 50%;
+  bottom: 2.75rem;
+  z-index: 6;
+  transform: translateX(-50%);
+  max-width: min(36rem, calc(100% - 1.5rem));
+  padding: 0.65rem 1.15rem;
+  border-radius: 0.55rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 4px 18px color-mix(in srgb, #000 45%, transparent);
+}
+
+.stage-end-banner-complete {
+  border: 1px solid #5ec8ff;
+  background: color-mix(in srgb, #061820 88%, #5ec8ff 12%);
+  color: #b8e8ff;
+}
+
+.stage-end-banner-abort {
+  border: 1px solid #e07050;
+  background: color-mix(in srgb, #1a0c08 88%, #e07050 12%);
+  color: #ffc4b0;
+}
