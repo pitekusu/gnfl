@@ -1,6 +1,9 @@
-import type { UnloadingMetrics } from "@/game/protocol/unloadingMetrics";
+import type { UnloadingMetrics } from "@shared/contracts/unloadingMetrics";
 
-/** Placeholder stage result until scoring lands in Phase 5. */
+/**
+ * Terminal stage payload (complete or abort).
+ * Score / grade attach in later Phase 5 commits; metrics are always present.
+ */
 export interface StageResult {
   stageId: "unloading";
   seed: string;

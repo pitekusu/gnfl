@@ -15,7 +15,11 @@ export { createEmptyRenderSnapshot } from "@/game/protocol/renderSnapshot";
 export type { GameEvent } from "@/game/protocol/gameEvent";
 export type { StageResult } from "@/game/protocol/stageResult";
 export type { UnloadingMetrics } from "@/game/protocol/unloadingMetrics";
-export { createZeroUnloadingMetrics } from "@/game/protocol/unloadingMetrics";
+export {
+  createZeroUnloadingMetrics,
+  parseUnloadingMetrics,
+  unloadingMetricsSchema,
+} from "@/game/protocol/unloadingMetrics";
 export type {
   MainToWorkerMessage,
   WorkerToMainMessage,
