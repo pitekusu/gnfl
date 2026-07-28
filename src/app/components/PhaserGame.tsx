@@ -5,6 +5,7 @@ import {
   formatStagePhaseHud,
   isLockEngagedStagePhase,
 } from "@/game/unloading/stagePhaseLabels";
+import { formatWaveHud, formatWindHud } from "@/game/unloading/weatherHud";
 
 /**
  * Hosts Phaser. Only low-frequency simulation status crosses into React state.
@@ -22,6 +23,8 @@ export function PhaserGame() {
   const [abortReason, setAbortReason] = useState<string | null>(null);
   const [lockReady, setLockReady] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [windHint, setWindHint] = useState(0);
+  const [waveHint, setWaveHint] = useState(0);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -52,6 +55,8 @@ export function PhaserGame() {
               setCableLoad(payload.cableLoad);
               setLockReady(Boolean(payload.lockReady));
               setLocked(Boolean(payload.locked));
+              setWindHint(typeof payload.windHint === "number" ? payload.windHint : 0);
+              setWaveHint(typeof payload.waveHint === "number" ? payload.waveHint : 0);
               setAbortReason(
                 payload.abortReason != null && payload.abortReason !== ""
                   ? payload.abortReason
@@ -134,6 +139,18 @@ export function PhaserGame() {
           <span className="game-hud-label">張力</span>
           <span className="game-hud-value" data-testid="hud-cable-load">
             {cableLoad.toFixed(1)}
+          </span>
+        </div>
+        <div className="game-hud-row">
+          <span className="game-hud-label">風</span>
+          <span className="game-hud-value game-hud-weather" data-testid="hud-wind">
+            {formatWindHud(windHint)}
+          </span>
+        </div>
+        <div className="game-hud-row">
+          <span className="game-hud-label">波</span>
+          <span className="game-hud-value game-hud-weather" data-testid="hud-wave">
+            {formatWaveHud(waveHint)}
           </span>
         </div>
       </div>

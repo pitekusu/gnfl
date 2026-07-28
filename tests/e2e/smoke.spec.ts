@@ -25,4 +25,6 @@ test("title screen opens and simulation worker becomes ready", async ({ page }) 
   });
   await expect(page.getByTestId("hud-sway")).toBeVisible();
   await expect(page.getByTestId("hud-cable-load")).toBeVisible();
+  await expect(page.getByTestId("hud-wind")).toBeVisible();
+  await expect(page.getByTestId("hud-wave")).toBeVisible();
 });

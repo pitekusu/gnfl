@@ -30,7 +30,10 @@ export interface CableRenderState {
   tension: number;
 }
 
-/** Phase 1 placeholder; weather visuals fill later. */
+/**
+ * Continuous sea/wind readouts for HUD (no discrete weather events).
+ * windHint ≈ forceX / maxForceAbs in [-1, 1]; waveHint = signed ship heave.
+ */
 export interface WeatherVisualState {
   windHint: number;
   waveHint: number;

@@ -31,6 +31,10 @@ export type SimulationStatusPayload =
       abortReason: string | null;
       lockReady: boolean;
       locked: boolean;
+      /** forceX / maxForceAbs, roughly [-1, 1]. */
+      windHint: number;
+      /** Signed ship heave (game units). */
+      waveHint: number;
     };
 
 /**
@@ -143,12 +147,14 @@ export class SimulationScene extends Phaser.Scene {
                 abortReason: message.snapshot.abortReason ?? null,
                 lockReady: message.snapshot.instruments.lockReady ?? false,
                 locked: message.snapshot.instruments.locked ?? false,
+                windHint: message.snapshot.weather?.windHint ?? 0,
+                waveHint: message.snapshot.weather?.waveHint ?? 0,
               });
             }
             if (this.client?.isPausedByUser()) {
               this.hintText?.setText("一時停止中 (Esc で再開)");
             } else if (this.snapshotCount === 1) {
-              this.hintText?.setText("操作中 — 振れ/張力は左上 HUD");
+              this.hintText?.setText("操作中 — 振れ/風/波は左上 HUD");
             }
           }
           break;
@@ -206,6 +212,8 @@ export class SimulationScene extends Phaser.Scene {
         abortReason: sample.snapshot.abortReason ?? null,
         lockReady: sample.snapshot.instruments.lockReady ?? false,
         locked: sample.snapshot.instruments.locked ?? false,
+        windHint: sample.snapshot.weather?.windHint ?? 0,
+        waveHint: sample.snapshot.weather?.waveHint ?? 0,
       });
     }
   }

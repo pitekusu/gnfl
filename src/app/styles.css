@@ -283,6 +283,11 @@ button {
   color: #8a9bab;
 }
 
+.game-hud-weather {
+  font-size: 1rem;
+  color: #a8d4f0;
+}
+
 .fine-mode-badge {
   position: absolute;
   top: 0.85rem;
