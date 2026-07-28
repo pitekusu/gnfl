@@ -583,8 +583,8 @@ export class UnloadingScaffoldWorld {
 
   /**
    * Space edge:
-   * - READY/ALIGNING + lockReady → engage joint → LOCKED
-   * - SEATED + locked → release joint and complete the stage
+   * - While locked (any phase): release joint → READY (re-lock allowed later)
+   * - READY/ALIGNING + lockReady: engage joint → LOCKED
    */
   private tryLockOrUnlockFromInput(): void {
     if (!this.control.lockPressed) {
@@ -593,14 +593,12 @@ export class UnloadingScaffoldWorld {
     // One-shot: clear so held/repeated samples in the same input packet do not re-fire.
     this.control = { ...this.control, lockPressed: false };
 
-    if (this.stage.phase === "SEATED") {
-      this.tryUnlockAndCompleteFromSeat();
+    if (this.caskLocked) {
+      this.releaseLockJoint();
+      this.dispatchStageEvent({ type: "UNLOCK_CONFIRMED" });
       return;
     }
 
-    if (this.caskLocked || this.lockJoint !== null) {
-      return;
-    }
     if (!this.lockReady) {
       return;
     }
@@ -621,17 +619,6 @@ export class UnloadingScaffoldWorld {
     this.alignStableTicks = 0;
   }
 
-  /** SEATED + Space: unlock the joint and mark the unloading stage complete. */
-  private tryUnlockAndCompleteFromSeat(): void {
-    if (!this.caskLocked && this.stage.phase === "SEATED") {
-      this.dispatchStageEvent({ type: "COMPLETE_CONFIRMED" });
-      return;
-    }
-    this.releaseLockJoint();
-    this.dispatchStageEvent({ type: "UNLOCK_CONFIRMED" });
-    this.dispatchStageEvent({ type: "COMPLETE_CONFIRMED" });
-  }
-
   private releaseLockJoint(): void {
     if (this.lockJoint !== null && this.lockJoint.isValid()) {
       this.world.removeImpulseJoint(this.lockJoint, true);
@@ -639,6 +626,7 @@ export class UnloadingScaffoldWorld {
     this.lockJoint = null;
     this.caskLocked = false;
     this.lockEngageCaskY = null;
+    this.seatStableTicks = 0;
   }
 
   /**

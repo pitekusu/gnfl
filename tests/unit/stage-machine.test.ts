@@ -109,4 +109,25 @@ describe("reduceStage", () => {
     state = reduceStage(state, { type: "SEAT_LOST" }).state;
     expect(state.phase).toBe("LANDING");
   });
+
+  it("returns to READY on unlock from any post-lock phase", () => {
+    for (const mid of [
+      [{ type: "ALIGNMENT_OK" as const }, { type: "LOCK_SUCCESS" as const }],
+      [
+        { type: "ALIGNMENT_OK" as const },
+        { type: "LOCK_SUCCESS" as const },
+        { type: "BREAKOUT_LIFT" as const },
+      ],
+      [
+        { type: "ALIGNMENT_OK" as const },
+        { type: "LOCK_SUCCESS" as const },
+        { type: "BREAKOUT_LIFT" as const },
+        { type: "CLEARED_HOLD" as const },
+      ],
+    ]) {
+      let state = applyStageEvents(createInitialStageMachineState(), mid);
+      state = reduceStage(state, { type: "UNLOCK_CONFIRMED" }).state;
+      expect(state.phase).toBe("READY");
+    }
+  });
 });

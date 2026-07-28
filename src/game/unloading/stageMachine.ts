@@ -83,7 +83,22 @@ export function reduceStage(
   };
 }
 
+/** Phases where the load may still be joint-locked and Space can unlock. */
+const UNLOCKABLE_PHASES = new Set<StagePhase>([
+  "LOCKED",
+  "LIFTING",
+  "CLEAR_OF_HOLD",
+  "TRAVERSING",
+  "LANDING",
+  "SEATED",
+]);
+
 function nextPhase(phase: StagePhase, event: StageMachineEvent): StagePhase | null {
+  // Unlock is allowed from any post-lock phase and returns to READY for re-lock.
+  if (event.type === "UNLOCK_CONFIRMED") {
+    return UNLOCKABLE_PHASES.has(phase) ? "READY" : null;
+  }
+
   switch (phase) {
     case "READY":
       if (event.type === "ALIGNMENT_OK") {
@@ -145,10 +160,6 @@ function nextPhase(phase: StagePhase, event: StageMachineEvent): StagePhase | nu
       }
       if (event.type === "BEGIN_TRAVERSE") {
         return "TRAVERSING";
-      }
-      if (event.type === "UNLOCK_CONFIRMED") {
-        // Stay SEATED until explicit complete; unlock is recorded by physics.
-        return null;
       }
       if (event.type === "COMPLETE_CONFIRMED") {
         return "COMPLETED";
