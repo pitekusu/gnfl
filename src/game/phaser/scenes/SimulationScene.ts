@@ -7,6 +7,10 @@ import {
 } from "@/game/phaser/drawUnloadingScenery";
 import { resolveEntityDisplay } from "@/game/phaser/entityDisplayRegistry";
 import { SnapshotBuffer } from "@/game/phaser/snapshotBuffer";
+import {
+  hasUsableTexture,
+  queueUnloadingSvgLoads,
+} from "@/game/phaser/unloadingAssetLoader";
 import { visibilityToSimulationAction } from "@/game/phaser/visibilityControl";
 import {
   CAMERA_FOCUS_X,
@@ -19,6 +23,8 @@ import {
   worldToDisplayY,
 } from "@/game/phaser/worldView";
 import { SimulationClient } from "@/game/worker/SimulationClient";
+
+type EntityView = Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
 
 export type SimulationStatusPayload =
   | { kind: "worker"; status: "connecting" | "ready" | "error"; detail?: string }
@@ -52,7 +58,7 @@ export class SimulationScene extends Phaser.Scene {
 
   private client: SimulationClient | null = null;
   private readonly snapshotBuffer = new SnapshotBuffer();
-  private readonly entityViews = new Map<string, Phaser.GameObjects.Rectangle>();
+  private readonly entityViews = new Map<string, EntityView>();
   private readonly keyboard = new CraneKeyboardBinder();
   private sceneryGraphics: Phaser.GameObjects.Graphics | null = null;
   private overlayGraphics: Phaser.GameObjects.Graphics | null = null;
@@ -71,6 +77,14 @@ export class SimulationScene extends Phaser.Scene {
 
   public constructor() {
     super(SimulationScene.KEY);
+  }
+
+  public preload(): void {
+    // Missing SVGs must not hard-fail boot; Phaser marks file errors and continues.
+    this.load.on("loaderror", (file: { key?: string; src?: string }) => {
+      console.warn("[unloading art] failed to load", file.key ?? file.src ?? file);
+    });
+    queueUnloadingSvgLoads(this.load);
   }
 
   public create(): void {
@@ -299,19 +313,15 @@ export class SimulationScene extends Phaser.Scene {
   private syncEntity(entity: RenderEntityState): void {
     let view = this.entityViews.get(entity.id);
     const display = resolveEntityDisplay(entity.kind);
+    const useTexture = hasUsableTexture(this.textures, display.textureKey);
+
     if (!view) {
-      // C5 will prefer Image when textureKey is loaded; greybox rectangle for now.
-      view = this.add.rectangle(
-        worldToDisplayX(entity.x),
-        worldToDisplayY(entity.y),
-        worldSizeToDisplay(entity.width),
-        worldSizeToDisplay(entity.height),
-        display.fillColor,
-      );
-      view.setOrigin(display.originX, display.originY);
-      view.setFillStyle(display.fillColor, display.fillAlpha);
-      view.setStrokeStyle(display.strokeWidth, display.strokeColor, 1);
-      view.setDepth(display.depth);
+      view = this.createEntityView(entity, display, useTexture);
+      this.entityViews.set(entity.id, view);
+    } else if (useTexture && view instanceof Phaser.GameObjects.Rectangle) {
+      // Texture became available after first frame (or race with preload) — upgrade.
+      view.destroy();
+      view = this.createEntityView(entity, display, true);
       this.entityViews.set(entity.id, view);
     }
 
@@ -321,6 +331,35 @@ export class SimulationScene extends Phaser.Scene {
       worldSizeToDisplay(entity.height),
     );
     view.setRotation(entity.angleRad);
+  }
+
+  private createEntityView(
+    entity: RenderEntityState,
+    display: ReturnType<typeof resolveEntityDisplay>,
+    useTexture: boolean,
+  ): EntityView {
+    const x = worldToDisplayX(entity.x);
+    const y = worldToDisplayY(entity.y);
+    const w = worldSizeToDisplay(entity.width);
+    const h = worldSizeToDisplay(entity.height);
+
+    if (useTexture && display.textureKey) {
+      const image = this.add.image(x, y, display.textureKey);
+      image.setOrigin(display.originX, display.originY);
+      image.setDisplaySize(w, h);
+      image.setDepth(display.depth);
+      if (display.fillAlpha < 1) {
+        image.setAlpha(display.fillAlpha);
+      }
+      return image;
+    }
+
+    const rect = this.add.rectangle(x, y, w, h, display.fillColor);
+    rect.setOrigin(display.originX, display.originY);
+    rect.setFillStyle(display.fillColor, display.fillAlpha);
+    rect.setStrokeStyle(display.strokeWidth, display.strokeColor, 1);
+    rect.setDepth(display.depth);
+    return rect;
   }
 
   private fitCamera(): void {
