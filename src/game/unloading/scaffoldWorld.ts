@@ -3,6 +3,7 @@ import type {
   PlayerInput,
   RenderSnapshot,
   StagePhase,
+  StageResult,
 } from "@/game/protocol";
 import { createNeutralPlayerInput } from "@/game/protocol";
 import type { UnloadingMetrics } from "@shared/contracts/unloadingMetrics";
@@ -11,6 +12,11 @@ import {
   accumulateUnloadingMetricsTick,
   createEmptyUnloadingMetrics,
 } from "@shared/scoring/accumulateUnloadingMetrics";
+import { scoreUnloading } from "@shared/scoring/scoreUnloading";
+import {
+  UNLOADING_RULESET_VERSION,
+  UNLOADING_STAGE_ID,
+} from "@shared/rulesets/unloadingV1";
 import type { RapierModule } from "@/game/simulation/rapierInit";
 import type RAPIER from "@dimforge/rapier2d-compat";
 import {
@@ -648,6 +654,26 @@ export class UnloadingScaffoldWorld {
   /** Current run metrics (copy) for scoring / tests. */
   public getMetrics(): UnloadingMetrics {
     return { ...this.metrics };
+  }
+
+  /**
+   * Terminal payload for worker COMPLETED / SAFE_ABORT.
+   * Safe to call any time; scoring is only filled when phase is COMPLETED.
+   */
+  public buildStageResult(): StageResult {
+    const metrics = this.getMetrics();
+    const completed = this.stage.phase === "COMPLETED";
+    const aborted = this.stage.phase === "SAFE_ABORTED";
+    return {
+      stageId: UNLOADING_STAGE_ID,
+      rulesetVersion: UNLOADING_RULESET_VERSION,
+      seed: this.seed,
+      completed,
+      aborted,
+      abortReason: this.stage.abortReason,
+      metrics,
+      scoring: completed ? scoreUnloading(metrics) : null,
+    };
   }
 
   private updateLockAlignmentAndPhase(): void {

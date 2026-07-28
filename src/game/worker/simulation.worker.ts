@@ -26,6 +26,8 @@ let loopTimer: ReturnType<typeof setTimeout> | null = null;
 let loopRunning = false;
 
 let stageSeed = "phase2-default";
+/** Emit COMPLETED / SAFE_ABORT only once per terminal transition. */
+let lastTerminalPosted: "COMPLETED" | "SAFE_ABORTED" | null = null;
 
 const controller = new SimulationController({
   onInit: async (seed, nextConfig) => {
@@ -44,6 +46,7 @@ const controller = new SimulationController({
     stageWorld?.free();
     stageWorld = null;
     config = null;
+    lastTerminalPosted = null;
   },
   onPause: () => {
     // Wall clock resumes cleanly on next RESUME via lastFrameMs reset in onResume.
@@ -60,6 +63,7 @@ function rebuildWorld(seed: string, nextConfig: SimulationConfig): void {
   stageWorld?.free();
   config = nextConfig;
   stageSeed = seed;
+  lastTerminalPosted = null;
   // Phase 2 C12: greybox unloading scene with keyboard crane control.
   stageWorld = UnloadingScaffoldWorld.create(
     rapier,
@@ -74,6 +78,19 @@ function rebuildWorld(seed: string, nextConfig: SimulationConfig): void {
     type: "SNAPSHOT",
     snapshot: stageWorld.buildSnapshot(1, performance.now()),
   });
+}
+
+function maybePostTerminalResult(world: UnloadingScaffoldWorld): void {
+  const phase = world.getStagePhase();
+  if (phase === "COMPLETED" && lastTerminalPosted !== "COMPLETED") {
+    lastTerminalPosted = "COMPLETED";
+    post({ type: "COMPLETED", result: world.buildStageResult() });
+    return;
+  }
+  if (phase === "SAFE_ABORTED" && lastTerminalPosted !== "SAFE_ABORTED") {
+    lastTerminalPosted = "SAFE_ABORTED";
+    post({ type: "SAFE_ABORT", result: world.buildStageResult() });
+  }
 }
 
 function startLoop(): void {
@@ -120,6 +137,7 @@ function frame(): void {
     for (let i = 0; i < advanced.steps; i += 1) {
       stageWorld.setControlInput(controller.input);
       stageWorld.step();
+      maybePostTerminalResult(stageWorld);
       const tickAfter = stepState.tick - advanced.steps + i + 1;
 
       if (shouldEmitSnapshot(tickAfter, config.physicsHz, config.snapshotHz)) {

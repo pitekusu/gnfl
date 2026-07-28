@@ -82,6 +82,11 @@ describe("UnloadingScaffoldWorld", () => {
     world.step();
     const afterAbort = world.getMetrics().elapsedTicks;
     expect(world.getStagePhase()).toBe("SAFE_ABORTED");
+    const abortResult = world.buildStageResult();
+    expect(abortResult.aborted).toBe(true);
+    expect(abortResult.completed).toBe(false);
+    expect(abortResult.scoring).toBeNull();
+    expect(abortResult.abortReason).toBe("E_STOP");
     for (let i = 0; i < 30; i += 1) {
       world.step();
     }
@@ -527,6 +532,16 @@ describe("UnloadingScaffoldWorld", () => {
     world.step();
     expect(world.isLockJointActive()).toBe(false);
     expect(world.getStagePhase()).toBe("COMPLETED");
+    const result = world.buildStageResult();
+    expect(result.completed).toBe(true);
+    expect(result.aborted).toBe(false);
+    expect(result.seed).toBe("seat-seed");
+    expect(result.rulesetVersion).toBe("unloading-v1");
+    expect(result.metrics.elapsedTicks).toBeGreaterThan(0);
+    expect(result.scoring).not.toBeNull();
+    expect(result.scoring?.score).toBeGreaterThanOrEqual(0);
+    expect(result.scoring?.score).toBeLessThanOrEqual(100_000);
+    expect(result.scoring?.grade).toMatch(/^[SABCDE]\+?$/);
     world.free();
   });
 
