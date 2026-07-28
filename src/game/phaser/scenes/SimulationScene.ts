@@ -5,7 +5,18 @@ import {
   drawDynamicUnloadingOverlays,
   drawStaticUnloadingScenery,
 } from "@/game/phaser/drawUnloadingScenery";
+import {
+  resolveEntityDisplay,
+  resolveOverlayDepth,
+} from "@/game/phaser/entityDisplayRegistry";
 import { SnapshotBuffer } from "@/game/phaser/snapshotBuffer";
+import { SEA_SURFACE_FX_DEPTH } from "@/game/phaser/entityDisplayRegistry";
+import { drawSeaSurfaceFx } from "@/game/phaser/seaSurfaceFx";
+import { mountStaticBerthArt } from "@/game/phaser/staticBerthArt";
+import {
+  hasUsableTexture,
+  queueAllUnloadingArtLoads,
+} from "@/game/phaser/unloadingAssetLoader";
 import { visibilityToSimulationAction } from "@/game/phaser/visibilityControl";
 import {
   CAMERA_FOCUS_X,
@@ -18,6 +29,8 @@ import {
   worldToDisplayY,
 } from "@/game/phaser/worldView";
 import { SimulationClient } from "@/game/worker/SimulationClient";
+
+type EntityView = Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle;
 
 export type SimulationStatusPayload =
   | { kind: "worker"; status: "connecting" | "ready" | "error"; detail?: string }
@@ -51,11 +64,17 @@ export class SimulationScene extends Phaser.Scene {
 
   private client: SimulationClient | null = null;
   private readonly snapshotBuffer = new SnapshotBuffer();
-  private readonly entityViews = new Map<string, Phaser.GameObjects.Rectangle>();
+  private readonly entityViews = new Map<string, EntityView>();
+  /** Optional front layers (ship hatch / cradle posts) sharing the body pose. */
+  private readonly entityOverlays = new Map<string, EntityView>();
   private readonly keyboard = new CraneKeyboardBinder();
   private sceneryGraphics: Phaser.GameObjects.Graphics | null = null;
+  private seaSurfaceGraphics: Phaser.GameObjects.Graphics | null = null;
   private overlayGraphics: Phaser.GameObjects.Graphics | null = null;
   private cableGraphics: Phaser.GameObjects.Graphics | null = null;
+  private berthBackdrop: Phaser.GameObjects.Image | null = null;
+  private staticGantry: Phaser.GameObjects.Image | null = null;
+  private seaFxElapsedSeconds = 0;
   private statusText: Phaser.GameObjects.Text | null = null;
   private hintText: Phaser.GameObjects.Text | null = null;
   private controlsText: Phaser.GameObjects.Text | null = null;
@@ -72,13 +91,28 @@ export class SimulationScene extends Phaser.Scene {
     super(SimulationScene.KEY);
   }
 
+  public preload(): void {
+    // Missing SVGs must not hard-fail boot; Phaser marks file errors and continues.
+    this.load.on("loaderror", (file: { key?: string; src?: string }) => {
+      console.warn("[unloading art] failed to load", file.key ?? file.src ?? file);
+    });
+    queueAllUnloadingArtLoads(this.load);
+  }
+
   public create(): void {
     this.cameras.main.setBackgroundColor(0x071018);
     this.fitCamera();
+    // Backdrop plate (optional WebP) + gantry SVG when present.
+    const staticArt = mountStaticBerthArt(this);
+    this.berthBackdrop = staticArt.backdrop;
+    this.staticGantry = staticArt.gantry;
+    // Water band, rail, bumper stay as graphics until art fully replaces them.
     this.sceneryGraphics = this.add.graphics().setDepth(1);
+    this.seaSurfaceGraphics = this.add.graphics().setDepth(SEA_SURFACE_FX_DEPTH);
     this.overlayGraphics = this.add.graphics().setDepth(9);
     this.cableGraphics = this.add.graphics().setDepth(20);
     drawStaticUnloadingScenery(this.sceneryGraphics);
+    drawSeaSurfaceFx(this.seaSurfaceGraphics, 0);
 
     this.statusText = this.add
       .text(12, 12, "worker: connecting", {
@@ -195,7 +229,13 @@ export class SimulationScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.DESTROY, this.onShutdown, this);
   }
 
-  public override update(): void {
+  public override update(_time: number, delta: number): void {
+    // Display-only rich sea (independent of physics pause). Cap only huge hitches.
+    this.seaFxElapsedSeconds += Math.min(0.08, Math.max(0, delta / 1000));
+    if (this.seaSurfaceGraphics) {
+      drawSeaSurfaceFx(this.seaSurfaceGraphics, this.seaFxElapsedSeconds);
+    }
+
     if (this.client && this.workerReady) {
       const { input, pausePressed } = this.keyboard.sample();
       if (pausePressed) {
@@ -264,6 +304,11 @@ export class SimulationScene extends Phaser.Scene {
       if (!seen.has(id)) {
         view.destroy();
         this.entityViews.delete(id);
+        const overlay = this.entityOverlays.get(id);
+        if (overlay) {
+          overlay.destroy();
+          this.entityOverlays.delete(id);
+        }
       }
     }
     if (this.overlayGraphics) {
@@ -297,42 +342,102 @@ export class SimulationScene extends Phaser.Scene {
 
   private syncEntity(entity: RenderEntityState): void {
     let view = this.entityViews.get(entity.id);
+    const display = resolveEntityDisplay(entity.kind);
+    const useTexture = hasUsableTexture(this.textures, display.textureKey);
+
     if (!view) {
-      const fill = entityFillColor(entity.kind);
-      const stroke = entityStrokeColor(entity.kind);
-      view = this.add.rectangle(
-        worldToDisplayX(entity.x),
-        worldToDisplayY(entity.y),
-        worldSizeToDisplay(entity.width),
-        worldSizeToDisplay(entity.height),
-        fill,
-      );
-      view.setOrigin(0.5, 0.5);
-      // Ship is a hollow hold outline so the free cask is visible inside.
-      if (entity.kind === "ship") {
-        view.setFillStyle(fill, 0.18);
-        view.setStrokeStyle(4, stroke, 1);
-        view.setDepth(8);
-      } else if (entity.kind === "cask") {
-        view.setFillStyle(fill, 1);
-        view.setStrokeStyle(4, stroke, 1);
-        view.setDepth(14);
-      } else if (entity.kind === "spreader" || entity.kind === "trolley") {
-        view.setStrokeStyle(3, stroke);
-        view.setDepth(15);
-      } else {
-        view.setStrokeStyle(3, stroke);
-        view.setDepth(5);
-      }
+      view = this.createEntityView(entity, display, useTexture, "primary");
+      this.entityViews.set(entity.id, view);
+    } else if (useTexture && view instanceof Phaser.GameObjects.Rectangle) {
+      // Texture became available after first frame (or race with preload) — upgrade.
+      view.destroy();
+      view = this.createEntityView(entity, display, true, "primary");
       this.entityViews.set(entity.id, view);
     }
 
+    this.syncEntityPose(view, entity);
+    this.syncEntityOverlay(entity, display);
+  }
+
+  /**
+   * Ship hatch lip / cradle front posts: same pose as body, higher depth so the
+   * cask (depth 14) sits between hull rear (8) and foreground (16).
+   */
+  private syncEntityOverlay(
+    entity: RenderEntityState,
+    display: ReturnType<typeof resolveEntityDisplay>,
+  ): void {
+    const overlayKey = display.overlayTextureKey;
+    const useOverlay = hasUsableTexture(this.textures, overlayKey);
+    let overlay = this.entityOverlays.get(entity.id);
+
+    if (!useOverlay || !overlayKey) {
+      if (overlay) {
+        overlay.destroy();
+        this.entityOverlays.delete(entity.id);
+      }
+      return;
+    }
+
+    if (!overlay) {
+      overlay = this.createEntityView(entity, display, true, "overlay");
+      this.entityOverlays.set(entity.id, overlay);
+    } else if (overlay instanceof Phaser.GameObjects.Rectangle) {
+      overlay.destroy();
+      overlay = this.createEntityView(entity, display, true, "overlay");
+      this.entityOverlays.set(entity.id, overlay);
+    }
+
+    this.syncEntityPose(overlay, entity);
+  }
+
+  private syncEntityPose(view: EntityView, entity: RenderEntityState): void {
     view.setPosition(worldToDisplayX(entity.x), worldToDisplayY(entity.y));
     view.setDisplaySize(
       worldSizeToDisplay(entity.width),
       worldSizeToDisplay(entity.height),
     );
     view.setRotation(entity.angleRad);
+  }
+
+  private createEntityView(
+    entity: RenderEntityState,
+    display: ReturnType<typeof resolveEntityDisplay>,
+    useTexture: boolean,
+    layer: "primary" | "overlay",
+  ): EntityView {
+    const x = worldToDisplayX(entity.x);
+    const y = worldToDisplayY(entity.y);
+    const w = worldSizeToDisplay(entity.width);
+    const h = worldSizeToDisplay(entity.height);
+    const textureKey =
+      layer === "overlay" ? display.overlayTextureKey : display.textureKey;
+    const depth =
+      layer === "overlay" ? resolveOverlayDepth(entity.kind) : display.depth;
+
+    if (useTexture && textureKey) {
+      const image = this.add.image(x, y, textureKey);
+      image.setOrigin(display.originX, display.originY);
+      image.setDisplaySize(w, h);
+      image.setDepth(depth);
+      // Textured SVGs already encode transparency; do not force greybox fillAlpha.
+      return image;
+    }
+
+    // Overlay has no greybox fallback — only primary bodies draw rectangles.
+    if (layer === "overlay") {
+      const ghost = this.add.rectangle(x, y, 1, 1, 0x000000, 0);
+      ghost.setVisible(false);
+      ghost.setDepth(depth);
+      return ghost;
+    }
+
+    const rect = this.add.rectangle(x, y, w, h, display.fillColor);
+    rect.setOrigin(display.originX, display.originY);
+    rect.setFillStyle(display.fillColor, display.fillAlpha);
+    rect.setStrokeStyle(display.strokeWidth, display.strokeColor, 1);
+    rect.setDepth(depth);
+    return rect;
   }
 
   private fitCamera(): void {
@@ -379,8 +484,14 @@ export class SimulationScene extends Phaser.Scene {
     this.client = null;
     this.workerReady = false;
     this.snapshotBuffer.clear();
+    this.berthBackdrop?.destroy();
+    this.berthBackdrop = null;
+    this.staticGantry?.destroy();
+    this.staticGantry = null;
     this.sceneryGraphics?.destroy();
     this.sceneryGraphics = null;
+    this.seaSurfaceGraphics?.destroy();
+    this.seaSurfaceGraphics = null;
     this.overlayGraphics?.destroy();
     this.overlayGraphics = null;
     this.cableGraphics?.destroy();
@@ -393,47 +504,9 @@ export class SimulationScene extends Phaser.Scene {
       view.destroy();
     }
     this.entityViews.clear();
-  }
-}
-
-function entityFillColor(kind: RenderEntityState["kind"]): number {
-  switch (kind) {
-    case "quay":
-    case "floor":
-      return 0x3a4f5f;
-    case "cradle":
-      return 0x5a4632;
-    case "ship":
-      // High contrast vs dark sea background so the hull reads clearly.
-      return 0x7eb3d4;
-    case "trolley":
-      return 0xf0a030;
-    case "spreader":
-      return 0xd4573a;
-    case "cask":
-      // Bright amber so the free cask reads clearly inside the hollow ship.
-      return 0xffb020;
-    default:
-      return 0x4f9cff;
-  }
-}
-
-function entityStrokeColor(kind: RenderEntityState["kind"]): number {
-  switch (kind) {
-    case "quay":
-    case "floor":
-      return 0x8fa6b8;
-    case "cradle":
-      return 0xc4a574;
-    case "ship":
-      return 0xb8d4e8;
-    case "trolley":
-      return 0xffe0a8;
-    case "spreader":
-      return 0xffc4b0;
-    case "cask":
-      return 0xfff0c8;
-    default:
-      return 0xd7ecff;
+    for (const overlay of this.entityOverlays.values()) {
+      overlay.destroy();
+    }
+    this.entityOverlays.clear();
   }
 }
